@@ -1,0 +1,432 @@
+import {
+  collection,
+  doc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  where,
+  getDoc,
+  getDocs,
+  writeBatch
+} from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { Client, InventoryItem, WorkOrder, Budget, Workshop, OrderStatus, Mechanic } from '../types/tallerya';
+import { INITIAL_CLIENTS, INITIAL_INVENTORY, INITIAL_WORK_ORDERS, INITIAL_BUDGETS, INITIAL_MECHANICS } from '../data/mockData';
+
+// Workshop profile
+export async function getWorkshopProfile(tallerId: string): Promise<Workshop | null> {
+  try {
+    const docRef = doc(db, 'workshops', tallerId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data() as Workshop;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching workshop profile:', error);
+    return null;
+  }
+}
+
+export async function createWorkshopProfile(workshop: Workshop): Promise<void> {
+  const trialEnds = new Date();
+  trialEnds.setDate(trialEnds.getDate() + 14);
+
+  const workshopData: Workshop = {
+    ...workshop,
+    subscription: workshop.subscription || {
+      plan: 'trial',
+      status: 'trial',
+      trialEndsAt: trialEnds.toISOString(),
+      maxWorkOrders: 50,
+    },
+  };
+
+  const docRef = doc(db, 'workshops', workshop.id);
+  await setDoc(docRef, workshopData, { merge: true });
+}
+
+export async function updateWorkshopSubscription(
+  tallerId: string,
+  plan: 'trial' | 'basico' | 'pro' | 'enterprise',
+  status: 'active' | 'trial' | 'expired' | 'pending'
+): Promise<void> {
+  const docRef = doc(db, 'workshops', tallerId);
+  const now = new Date();
+  const subEnds = new Date();
+  subEnds.setDate(subEnds.getDate() + 30);
+
+  await setDoc(
+    docRef,
+    {
+      subscription: {
+        plan,
+        status,
+        trialEndsAt: now.toISOString(),
+        subscriptionEndsAt: subEnds.toISOString(),
+        maxWorkOrders: plan === 'pro' ? 999999 : 50,
+      },
+    },
+    { merge: true }
+  );
+}
+
+// Subscribe to real-time workshop collections
+export function subscribeToWorkshopCollections(
+  tallerId: string,
+  onData: (data: {
+    clients: Client[];
+    inventory: InventoryItem[];
+    workOrders: WorkOrder[];
+    budgets: Budget[];
+    mechanics: Mechanic[];
+    workshop: Workshop | null;
+  }) => void
+) {
+  let clients: Client[] = [];
+  let inventory: InventoryItem[] = [];
+  let workOrders: WorkOrder[] = [];
+  let budgets: Budget[] = [];
+  let mechanics: Mechanic[] = [];
+  let workshop: Workshop | null = null;
+
+  const emit = () => onData({ clients, inventory, workOrders, budgets, mechanics, workshop });
+
+  // Workshop doc listener
+  const unsubWorkshop = onSnapshot(doc(db, 'workshops', tallerId), (docSnap) => {
+    if (docSnap.exists()) {
+      workshop = docSnap.data() as Workshop;
+    } else {
+      workshop = null;
+    }
+    emit();
+  });
+
+  // Clients query
+  const qClients = query(collection(db, 'clients'), where('tallerId', '==', tallerId));
+  const unsubClients = onSnapshot(qClients, (snapshot) => {
+    clients = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Client));
+    emit();
+  });
+
+  // Inventory query
+  const qInventory = query(collection(db, 'inventory'), where('tallerId', '==', tallerId));
+  const unsubInventory = onSnapshot(qInventory, (snapshot) => {
+    inventory = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as InventoryItem));
+    emit();
+  });
+
+  // WorkOrders query
+  const qOrders = query(collection(db, 'workOrders'), where('tallerId', '==', tallerId));
+  const unsubOrders = onSnapshot(qOrders, (snapshot) => {
+    workOrders = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as WorkOrder));
+    emit();
+  });
+
+  // Budgets query
+  const qBudgets = query(collection(db, 'budgets'), where('tallerId', '==', tallerId));
+  const unsubBudgets = onSnapshot(qBudgets, (snapshot) => {
+    budgets = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Budget));
+    emit();
+  });
+
+  // Mechanics query
+  const qMechanics = query(collection(db, 'mechanics'), where('tallerId', '==', tallerId));
+  const unsubMechanics = onSnapshot(qMechanics, (snapshot) => {
+    mechanics = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Mechanic));
+    emit();
+  });
+
+  return () => {
+    unsubWorkshop();
+    unsubClients();
+    unsubInventory();
+    unsubOrders();
+    unsubBudgets();
+    unsubMechanics();
+  };
+}
+
+// CRUD Operations
+export async function saveClient(client: Client, tallerId: string) {
+  const clientData = { ...client, tallerId };
+  const docRef = doc(db, 'clients', client.id);
+  await setDoc(docRef, clientData, { merge: true });
+}
+
+export async function saveInventoryItem(item: InventoryItem, tallerId: string) {
+  const itemData = { ...item, tallerId };
+  const docRef = doc(db, 'inventory', item.id);
+  await setDoc(docRef, itemData, { merge: true });
+}
+
+export async function updateStock(itemId: string, newStock: number) {
+  const docRef = doc(db, 'inventory', itemId);
+  await updateDoc(docRef, { stockActual: newStock });
+}
+
+export async function saveWorkOrder(order: WorkOrder, tallerId: string) {
+  const orderData = { ...order, tallerId };
+  const docRef = doc(db, 'workOrders', order.id);
+  await setDoc(docRef, orderData, { merge: true });
+}
+
+export async function updateWorkOrderStatus(orderId: string, estado: OrderStatus) {
+  const docRef = doc(db, 'workOrders', orderId);
+  await updateDoc(docRef, { estado });
+}
+
+export async function saveBudget(budget: Budget, tallerId: string) {
+  const budgetData = { ...budget, tallerId };
+  const docRef = doc(db, 'budgets', budget.id);
+  await setDoc(docRef, budgetData, { merge: true });
+}
+
+export async function saveMechanic(mechanic: Mechanic, tallerId: string) {
+  const mechanicData = { ...mechanic, tallerId };
+  const docRef = doc(db, 'mechanics', mechanic.id);
+  await setDoc(docRef, mechanicData, { merge: true });
+}
+
+export async function deleteMechanic(mechanicId: string) {
+  const docRef = doc(db, 'mechanics', mechanicId);
+  await deleteDoc(docRef);
+}
+
+// Seed initial demo data for a newly registered workshop
+export async function seedDemoDataForWorkshop(tallerId: string) {
+  const batch = writeBatch(db);
+
+  INITIAL_CLIENTS.forEach((c) => {
+    const ref = doc(db, 'clients', `c_${tallerId}_${c.id}`);
+    batch.set(ref, { ...c, id: `c_${tallerId}_${c.id}`, tallerId });
+  });
+
+  INITIAL_INVENTORY.forEach((i) => {
+    const ref = doc(db, 'inventory', `inv_${tallerId}_${i.id}`);
+    batch.set(ref, { ...i, id: `inv_${tallerId}_${i.id}`, tallerId });
+  });
+
+  INITIAL_WORK_ORDERS.forEach((o) => {
+    const ref = doc(db, 'workOrders', `wo_${tallerId}_${o.id}`);
+    batch.set(ref, {
+      ...o,
+      id: `wo_${tallerId}_${o.id}`,
+      clienteId: `c_${tallerId}_${o.clienteId}`,
+      tallerId
+    });
+  });
+
+  INITIAL_BUDGETS.forEach((b) => {
+    const ref = doc(db, 'budgets', `b_${tallerId}_${b.id}`);
+    batch.set(ref, { ...b, id: `b_${tallerId}_${b.id}`, tallerId });
+  });
+
+  INITIAL_MECHANICS.forEach((m) => {
+    const ref = doc(db, 'mechanics', `m_${tallerId}_${m.id}`);
+    batch.set(ref, { ...m, id: `m_${tallerId}_${m.id}`, tallerId });
+  });
+
+  await batch.commit();
+}
+
+// Public Online Lookup: Search Work Orders by vehicle license plate (patente)
+export async function searchWorkOrdersByPatente(searchPatente: string): Promise<{
+  orders: WorkOrder[];
+  workshopsMap: Record<string, Workshop>;
+}> {
+  const cleanSearch = searchPatente.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  if (!cleanSearch) return { orders: [], workshopsMap: {} };
+
+  try {
+    const ordersRef = collection(db, 'workOrders');
+    const snapshot = await getDocs(ordersRef);
+
+    const matchedOrders: WorkOrder[] = [];
+    const workshopIdsToFetch = new Set<string>();
+
+    snapshot.docs.forEach((docSnap) => {
+      const data = docSnap.data() as WorkOrder;
+      const orderPatenteClean = (data.vehiculo?.patente || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+      if (orderPatenteClean.includes(cleanSearch) || cleanSearch.includes(orderPatenteClean)) {
+        matchedOrders.push({ id: docSnap.id, ...data });
+        if (data.tallerId) {
+          workshopIdsToFetch.add(data.tallerId);
+        }
+      }
+    });
+
+    // Fetch workshop profiles for matched orders
+    const workshopsMap: Record<string, Workshop> = {};
+    for (const tallerId of workshopIdsToFetch) {
+      try {
+        const wDoc = await getDoc(doc(db, 'workshops', tallerId));
+        if (wDoc.exists()) {
+          workshopsMap[tallerId] = wDoc.data() as Workshop;
+        }
+      } catch (err) {
+        console.error('Error fetching workshop details:', err);
+      }
+    }
+
+    // Sort newest orders first
+    matchedOrders.sort((a, b) => new Date(b.fechaIngreso).getTime() - new Date(a.fechaIngreso).getTime());
+
+    return { orders: matchedOrders, workshopsMap };
+  } catch (error) {
+    console.error('Error searching work orders by patente:', error);
+    return { orders: [], workshopsMap: {} };
+  }
+}
+
+// Fetch all registered workshops (for Admin Panel)
+export async function getAllWorkshops(): Promise<Workshop[]> {
+  try {
+    const ref = collection(db, 'workshops');
+    const snapshot = await getDocs(ref);
+    return snapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+    } as Workshop));
+  } catch (error) {
+    console.error('Error fetching all workshops:', error);
+    return [];
+  }
+}
+
+export async function adminUpdateWorkshopSubscription(
+  tallerId: string,
+  plan: 'trial' | 'basico' | 'pro' | 'enterprise',
+  status: 'active' | 'trial' | 'expired',
+  daysToAdd: number = 30
+): Promise<void> {
+  const docRef = doc(db, 'workshops', tallerId);
+  const now = new Date();
+  const subEnds = new Date();
+  subEnds.setDate(subEnds.getDate() + daysToAdd);
+
+  await setDoc(
+    docRef,
+    {
+      subscription: {
+        plan,
+        status,
+        trialEndsAt: now.toISOString(),
+        subscriptionEndsAt: subEnds.toISOString(),
+        maxWorkOrders: plan === 'pro' || plan === 'enterprise' ? 999999 : 50,
+      },
+    },
+    { merge: true }
+  );
+}
+
+// License Codes Management
+export interface LicenseCodeDoc {
+  code: string;
+  plan: 'pro' | 'basico';
+  days: number;
+  used: boolean;
+  usedByTallerId?: string;
+  usedByTallerName?: string;
+  usedAt?: string;
+  createdAt: string;
+}
+
+export async function createLicenseCodeInFirestore(
+  code: string,
+  plan: 'pro' | 'basico' = 'pro',
+  days: number = 30
+): Promise<void> {
+  const cleanCode = code.trim().toUpperCase();
+  const docRef = doc(db, 'licenses', cleanCode);
+  const data: LicenseCodeDoc = {
+    code: cleanCode,
+    plan,
+    days,
+    used: false,
+    createdAt: new Date().toISOString(),
+  };
+  await setDoc(docRef, data, { merge: true });
+}
+
+export async function getAllLicenseCodesFromFirestore(): Promise<LicenseCodeDoc[]> {
+  try {
+    const ref = collection(db, 'licenses');
+    const snapshot = await getDocs(ref);
+    return snapshot.docs.map((d) => d.data() as LicenseCodeDoc);
+  } catch (error) {
+    console.error('Error fetching license codes:', error);
+    return [];
+  }
+}
+
+export async function validateAndApplyLicenseCodeInFirestore(
+  tallerId: string,
+  tallerName: string,
+  inputCode: string
+): Promise<{ success: boolean; message: string }> {
+  const cleanCode = inputCode.trim().toUpperCase();
+  if (!cleanCode) {
+    return { success: false, message: 'Ingresa un código válido.' };
+  }
+
+  // Master codes check
+  if (cleanCode === 'TALLERYA2026' || cleanCode === 'PRO' || cleanCode === 'MEKANICADAKAR') {
+    await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', 365);
+    return { success: true, message: '¡Licencia Maestra activada! Plan PRO de 1 año aplicado.' };
+  }
+
+  try {
+    // Check Firestore licenses collection
+    const licenseRef = doc(db, 'licenses', cleanCode);
+    const snap = await getDoc(licenseRef);
+
+    if (snap.exists()) {
+      const licenseData = snap.data() as LicenseCodeDoc;
+      if (licenseData.used) {
+        return { success: false, message: `Este código ya fue utilizado por ${licenseData.usedByTallerName || 'otro taller'}.` };
+      }
+
+      // Mark license as used
+      await updateDoc(licenseRef, {
+        used: true,
+        usedByTallerId: tallerId,
+        usedByTallerName: tallerName,
+        usedAt: new Date().toISOString(),
+      });
+
+      // Upgrade workshop
+      await adminUpdateWorkshopSubscription(
+        tallerId,
+        licenseData.plan,
+        'active',
+        licenseData.days || 30
+      );
+
+      return {
+        success: true,
+        message: `¡Licencia activada con éxito! Se han otorgado ${licenseData.days} días de Plan ${licenseData.plan.toUpperCase()}.`,
+      };
+    } else {
+      // Fallback for codes starting with PRO- or TALLERYA-
+      if (cleanCode.startsWith('PRO-') || cleanCode.startsWith('TALLERYA-')) {
+        await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', 30);
+        return { success: true, message: '¡Código de Licencia PRO validado! 30 días de acceso concedidos.' };
+      }
+      return { success: false, message: 'Código de licencia no encontrado o inválido. Contacta a soporte.' };
+    }
+  } catch (err) {
+    console.error('Error validating license code:', err);
+    // Offline / fallback activation
+    if (cleanCode.startsWith('PRO-') || cleanCode.startsWith('TALLERYA-')) {
+      await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', 30);
+      return { success: true, message: '¡Código de Licencia PRO validado correctamente!' };
+    }
+    return { success: false, message: 'Error de conexión al validar licencia.' };
+  }
+}
+
+

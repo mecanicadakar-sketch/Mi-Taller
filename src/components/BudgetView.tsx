@@ -1,0 +1,310 @@
+import React, { useState } from 'react';
+import { Budget } from '../types/tallerya';
+import { PrintBudgetModal } from './PrintBudgetModal';
+import { Plus, Printer, FileText, Trash2, CheckCircle, Clock, XCircle } from 'lucide-react';
+
+interface BudgetViewProps {
+  budgets: Budget[];
+  onAddBudget: (budget: Budget) => void;
+}
+
+export function BudgetView({ budgets, onAddBudget }: BudgetViewProps) {
+  const [selectedForPrint, setSelectedForPrint] = useState<Budget | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  // New Budget Form
+  const [clienteNombre, setClienteNombre] = useState('');
+  const [clienteTelefono, setClienteTelefono] = useState('');
+  const [vehiculoInfo, setVehiculoInfo] = useState('');
+  const [descuento, setDescuento] = useState(0);
+
+  const [items, setItems] = useState<
+    { descripcion: string; cantidad: number; precioUnitario: number; subtotal: number }[]
+  >([
+    { descripcion: 'Service de motor y cambio de aceite', cantidad: 1, precioUnitario: 85000, subtotal: 85000 },
+  ]);
+
+  const handleAddItemRow = () => {
+    setItems((prev) => [
+      ...prev,
+      { descripcion: '', cantidad: 1, precioUnitario: 0, subtotal: 0 },
+    ]);
+  };
+
+  const handleRemoveItemRow = (idx: number) => {
+    setItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleUpdateItem = (idx: number, field: string, val: any) => {
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== idx) return item;
+        const updated = { ...item, [field]: val };
+        if (field === 'cantidad' || field === 'precioUnitario') {
+          updated.subtotal = (Number(updated.cantidad) || 0) * (Number(updated.precioUnitario) || 0);
+        }
+        return updated;
+      })
+    );
+  };
+
+  const calculateSubtotal = () => items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+  const calculateTotal = () => Math.max(0, calculateSubtotal() - (Number(descuento) || 0));
+
+  const handleSaveBudget = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clienteNombre.trim()) return;
+
+    const newBudget: Budget = {
+      id: 'b_' + Date.now(),
+      numeroPresupuesto: `PRES-2026-${Math.floor(100 + Math.random() * 900)}`,
+      fecha: new Date().toISOString().split('T')[0],
+      clienteNombre: clienteNombre.trim(),
+      clienteTelefono: clienteTelefono.trim(),
+      vehiculoInfo: vehiculoInfo.trim() || 'Vehículo Cliente',
+      items,
+      descuento: Number(descuento) || 0,
+      total: calculateTotal(),
+      estado: 'pendiente',
+    };
+
+    onAddBudget(newBudget);
+    setShowAddModal(false);
+
+    // Reset Form
+    setClienteNombre('');
+    setClienteTelefono('');
+    setVehiculoInfo('');
+    setDescuento(0);
+    setItems([{ descripcion: 'Mano de obra', cantidad: 1, precioUnitario: 40000, subtotal: 40000 }]);
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Presupuestos y Cotizaciones</h2>
+          <p className="text-xs text-slate-500">Genera presupuestos detallados para imprimir o enviar por WhatsApp</p>
+        </div>
+
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+        >
+          <Plus className="w-4 h-4 stroke-[2.5]" />
+          Crear Presupuesto
+        </button>
+      </div>
+
+      {/* Budgets List */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {budgets.map((b) => (
+          <div
+            key={b.id}
+            className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4 hover:border-amber-400 transition-all"
+          >
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-slate-900 text-xs bg-slate-100 px-2 py-0.5 rounded-md">
+                    {b.numeroPresupuesto}
+                  </span>
+                  <span className="text-xs text-slate-400">{b.fecha}</span>
+                </div>
+                <h3 className="font-bold text-slate-900 text-base mt-1">{b.clienteNombre}</h3>
+                <p className="text-xs text-slate-500">{b.vehiculoInfo}</p>
+              </div>
+
+              <span
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg ${
+                  b.estado === 'aprobado'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : b.estado === 'pendiente'
+                    ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {b.estado.toUpperCase()}
+              </span>
+            </div>
+
+            {/* Items Summary */}
+            <div className="space-y-1.5 text-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Resumen de Ítems ({b.items.length})
+              </span>
+              {b.items.slice(0, 3).map((it, i) => (
+                <div key={i} className="flex justify-between text-slate-700">
+                  <span className="truncate max-w-[220px]">• {it.descripcion}</span>
+                  <span className="font-bold shrink-0">${it.subtotal.toLocaleString('es-AR')}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer / Total & Actions */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase font-bold">Total Est.</span>
+                <p className="text-lg font-black text-slate-900">${b.total.toLocaleString('es-AR')}</p>
+              </div>
+
+              <button
+                onClick={() => setSelectedForPrint(b)}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5"
+              >
+                <Printer className="w-4 h-4" />
+                Imprimir / PDF
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Add Budget Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-5 shadow-2xl border border-slate-200 my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-900 text-lg">Nuevo Presupuesto MiTaller</h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBudget} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700">Cliente *</label>
+                  <input
+                    type="text"
+                    required
+                    value={clienteNombre}
+                    onChange={(e) => setClienteNombre(e.target.value)}
+                    placeholder="Nombre del cliente"
+                    className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-700">Teléfono</label>
+                  <input
+                    type="text"
+                    value={clienteTelefono}
+                    onChange={(e) => setClienteTelefono(e.target.value)}
+                    placeholder="+54 9 11..."
+                    className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700">Vehículo (Marca, Modelo, Patente)</label>
+                <input
+                  type="text"
+                  value={vehiculoInfo}
+                  onChange={(e) => setVehiculoInfo(e.target.value)}
+                  placeholder="Ej. Toyota Hilux 2.8 (AE 452 XY)"
+                  className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                />
+              </div>
+
+              {/* Items Rows */}
+              <div className="space-y-2 border-t border-slate-100 pt-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Detalle de Tareas y Repuestos
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAddItemRow}
+                    className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1"
+                  >
+                    + Agregar ítem
+                  </button>
+                </div>
+
+                {items.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Descripción de tarea o repuesto"
+                      value={item.descripcion}
+                      onChange={(e) => handleUpdateItem(idx, 'descripcion', e.target.value)}
+                      className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Cant"
+                      value={item.cantidad}
+                      onChange={(e) => handleUpdateItem(idx, 'cantidad', e.target.value)}
+                      className="w-16 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-center"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Precio Unit."
+                      value={item.precioUnitario}
+                      onChange={(e) => handleUpdateItem(idx, 'precioUnitario', e.target.value)}
+                      className="w-28 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-right"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItemRow(idx)}
+                      className="p-2 text-rose-500 hover:text-rose-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total Summary */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 text-xs">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Subtotal:</span>
+                  <span className="font-bold">${calculateSubtotal().toLocaleString('es-AR')}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Descuento ($):</span>
+                  <input
+                    type="number"
+                    value={descuento}
+                    onChange={(e) => setDescuento(Number(e.target.value))}
+                    className="w-24 p-1 bg-white border border-slate-200 rounded text-right font-bold"
+                  />
+                </div>
+                <div className="flex justify-between items-center text-sm font-extrabold text-slate-900 pt-2 border-t border-slate-200">
+                  <span>TOTAL FINAL:</span>
+                  <span className="text-amber-600">${calculateTotal().toLocaleString('es-AR')}</span>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 text-xs text-slate-600 hover:text-slate-900 font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-xs"
+                >
+                  Guardar Presupuesto
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Print Preview Modal */}
+      {selectedForPrint && (
+        <PrintBudgetModal budget={selectedForPrint} onClose={() => setSelectedForPrint(null)} />
+      )}
+    </div>
+  );
+}
