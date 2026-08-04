@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /workshops/{tallerId} {
+      allow read, write: if true;
+    }
+
+    match /clients/{clientId} {
+      allow read, write, delete: if true;
+    }
+
+    match /workOrders/{orderId} {
+      allow read, write, delete: if true;
+    }
+
+    match /inventory/{itemId} {
+      allow read, write, delete: if true;
+    }
+
+    match /budgets/{budgetId} {
+      allow read, write, delete: if true;
+    }
+
+    match /mechanics/{mechanicId} {
+      allow read, write, delete: if true;
+    }
+
+    match /licenses/{code} {
+      allow read, write, delete: if true;
+    }
+  }
+}
