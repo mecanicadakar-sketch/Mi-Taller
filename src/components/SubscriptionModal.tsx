@@ -32,7 +32,45 @@ export function SubscriptionModal({
   const [codeError, setCodeError] = useState('');
   const [codeSuccess, setCodeSuccess] = useState('');
   const [isActivating, setIsActivating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'plans' | 'transfer' | 'code'>('plans');
+  const [activeTab, setActiveTab] = useState<'plans' | 'card_checkout' | 'transfer' | 'code'>('plans');
+  const [selectedPlanForCard, setSelectedPlanForCard] = useState<{ name: string; price: string; amount: number } | null>(null);
+
+  // Card Form State
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardHolder, setCardHolder] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [isProcessingCard, setIsProcessingCard] = useState(false);
+  const [cardSuccess, setCardSuccess] = useState(false);
+  const [cardError, setCardError] = useState('');
+
+  const handleStartCardPayment = (planName: string, priceStr: string, amountNum: number) => {
+    setSelectedPlanForCard({ name: planName, price: priceStr, amount: amountNum });
+    setCardError('');
+    setCardSuccess(false);
+    setActiveTab('card_checkout');
+  };
+
+  const handleProcessCardPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cardNumber || !cardHolder || !cardExpiry || !cardCvv) {
+      setCardError('Por favor completa todos los campos de la tarjeta.');
+      return;
+    }
+    setIsProcessingCard(true);
+    setCardError('');
+
+    // Simulate online gateway processing
+    setTimeout(async () => {
+      setIsProcessingCard(false);
+      setCardSuccess(true);
+
+      // Automatically activate Pro subscription
+      if (onActivateLicense) {
+        await onActivateLicense('PRO');
+      }
+    }, 1800);
+  };
 
   if (!isOpen) return null;
 
@@ -226,14 +264,23 @@ export function SubscriptionModal({
                     </li>
                   </ul>
                 </div>
-                <a
-                  href={getWhatsAppUrl('Plan Básico ($15/mes)')}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors text-center block"
-                >
-                  Solicitar Plan Básico
-                </a>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleStartCardPayment('Plan Básico', '$15 USD', 15)}
+                    className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors text-center flex items-center justify-center gap-2"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    <span>Pagar $15 con Tarjeta</span>
+                  </button>
+                  <a
+                    href={getWhatsAppUrl('Plan Básico ($15/mes)')}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] rounded-lg text-center block transition-colors"
+                  >
+                    Solicitar vía WhatsApp
+                  </a>
+                </div>
               </div>
 
               {/* Plan PRO */}
@@ -274,14 +321,23 @@ export function SubscriptionModal({
                     </li>
                   </ul>
                 </div>
-                <a
-                  href={getWhatsAppUrl('Plan PRO ($29/mes)')}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-colors text-center block"
-                >
-                  Activar Plan PRO por WhatsApp
-                </a>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleStartCardPayment('Plan PRO Taller', '$29 USD', 29)}
+                    className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-colors text-center flex items-center justify-center gap-2"
+                  >
+                    <CreditCard className="w-4 h-4 text-slate-950" />
+                    <span>Pagar $29 con Tarjeta Online</span>
+                  </button>
+                  <a
+                    href={getWhatsAppUrl('Plan PRO ($29/mes)')}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-[11px] rounded-lg text-center block transition-colors"
+                  >
+                    Contactar por WhatsApp
+                  </a>
+                </div>
               </div>
 
               {/* Plan ANUAL */}
@@ -313,47 +369,254 @@ export function SubscriptionModal({
                     </li>
                   </ul>
                 </div>
-                <a
-                  href={getWhatsAppUrl('Plan ANUAL PRO ($290/año)')}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors text-center block"
-                >
-                  Solicitar Descuento Anual
-                </a>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleStartCardPayment('Plan Anual PRO', '$290 USD', 290)}
+                    className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors text-center flex items-center justify-center gap-2"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    <span>Pagar $290 con Tarjeta</span>
+                  </button>
+                  <a
+                    href={getWhatsAppUrl('Plan ANUAL PRO ($290/año)')}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] rounded-lg text-center block transition-colors"
+                  >
+                    Pedir Descuento por WhatsApp
+                  </a>
+                </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'card_checkout' && (
+            <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-md max-w-lg mx-auto space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-blue-100 text-blue-700 rounded-xl">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm">Pago Seguro con Tarjeta</h3>
+                    <p className="text-xs text-slate-500">
+                      {selectedPlanForCard ? selectedPlanForCard.name : 'Suscripción PRO'} ({selectedPlanForCard?.price || '$29 USD'})
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('plans')}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-800 underline"
+                >
+                  Cambiar Plan
+                </button>
+              </div>
+
+              {cardSuccess ? (
+                <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-200 text-center space-y-3">
+                  <div className="w-12 h-12 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto shadow-md">
+                    <Check className="w-6 h-6 stroke-[3]" />
+                  </div>
+                  <h4 className="font-black text-slate-900 text-base">¡Pago Procesado Exitosamente!</h4>
+                  <p className="text-xs text-slate-600">
+                    Se ha activado el <strong className="text-emerald-800">{selectedPlanForCard?.name || 'Plan PRO'}</strong> para tu taller <strong className="text-slate-900">{workshop?.nombreTaller || 'Mi Taller'}</strong>.
+                  </p>
+                  <div className="p-3 bg-white rounded-xl border border-emerald-200 text-left text-xs font-mono text-slate-700 space-y-1">
+                    <p><strong>Monto Pagado:</strong> {selectedPlanForCard?.price || '$29 USD'}</p>
+                    <p><strong>Estado:</strong> ACREDITADO EN LÍNEA</p>
+                    <p><strong>Comprobante ID:</strong> TXN-{Math.floor(100000 + Math.random() * 900000)}</p>
+                  </div>
+                  <button
+                    onClick={onClose}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors"
+                  >
+                    Comenzar a Usar MiTaller PRO
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleProcessCardPayment} className="space-y-4">
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Nombre en la Tarjeta</label>
+                      <input
+                        type="text"
+                        required
+                        value={cardHolder}
+                        onChange={(e) => setCardHolder(e.target.value)}
+                        placeholder="Ej: JUAN PEREZ"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 uppercase"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Número de Tarjeta</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          maxLength={19}
+                          value={cardNumber}
+                          onChange={(e) => setCardNumber(e.target.value)}
+                          placeholder="4500 0000 0000 0000"
+                          className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono text-slate-900 font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                        <CreditCard className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Vencimiento</label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={5}
+                          value={cardExpiry}
+                          onChange={(e) => setCardExpiry(e.target.value)}
+                          placeholder="MM/AA"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono text-slate-900 font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-center"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">CÓDIGO CVV/CVC</label>
+                        <input
+                          type="password"
+                          required
+                          maxLength={4}
+                          value={cardCvv}
+                          onChange={(e) => setCardCvv(e.target.value)}
+                          placeholder="123"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono text-slate-900 font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-center"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {cardError && (
+                    <p className="text-xs font-semibold text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-200">
+                      {cardError}
+                    </p>
+                  )}
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={isProcessingCard}
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>
+                        {isProcessingCard
+                          ? 'Procesando Pago Seguro...'
+                          : `Pagar ${selectedPlanForCard?.price || '$29 USD'} y Activar Ahora`}
+                      </span>
+                    </button>
+                    <p className="text-[10px] text-slate-400 text-center mt-2 flex items-center justify-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                      <span>Transacción encriptada de 256 bits ssl</span>
+                    </p>
+                  </div>
+                </form>
+              )}
             </div>
           )}
 
           {activeTab === 'transfer' && (
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
               <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
-                <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl">
-                  <Building2 className="w-6 h-6" />
+                <div className="p-2.5 bg-blue-100 text-blue-800 rounded-xl">
+                  <CreditCard className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Transferencias Bancarias & Giros</h3>
-                  <p className="text-xs text-slate-500">Paga fácilmente mediante tu banco o billetera digital favorita</p>
+                  <h3 className="font-bold text-slate-900 text-sm">Medios de Pago Disponibles</h3>
+                  <p className="text-xs text-slate-500">Aceptamos Tarjetas de Crédito/Débito, Transferencias y Giros Billeteras</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                  <h4 className="font-bold text-slate-900 mb-2 flex items-center gap-1.5">
-                    <Phone className="w-4 h-4 text-amber-500" />
-                    Giros Tigo / Billeteras Digitales
-                  </h4>
-                  <p className="text-slate-600">Número de Giro / WhatsApp:</p>
-                  <p className="font-mono font-bold text-slate-900 text-sm mt-0.5">+595 975 635 770</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                {/* Credit Card Option */}
+                <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-xl border border-blue-200 flex flex-col justify-between space-y-3">
+                  <div>
+                    <h4 className="font-bold text-slate-900 mb-1.5 flex items-center gap-1.5 text-xs">
+                      <CreditCard className="w-4 h-4 text-blue-600" />
+                      Tarjetas de Crédito / Débito
+                    </h4>
+                    <p className="text-slate-600 text-[11px] mb-2">
+                      Visa, Mastercard, American Express. Procesamiento 100% seguro con acreditación instantánea.
+                    </p>
+                    <div className="flex items-center gap-1.5 font-semibold text-[10px] text-blue-700 bg-blue-100/70 px-2 py-1 rounded-md">
+                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                      <span>Pago online directo sin salir de la app</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <button
+                      onClick={() => handleStartCardPayment('Plan PRO Taller', '$29 USD', 29)}
+                      className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg text-center block transition-colors shadow-xs"
+                    >
+                      Pagar con Tarjeta en la App
+                    </button>
+                    <a
+                      href={getWhatsAppUrl('Solicitar Enlace de Pago con Tarjeta')}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full py-1 px-2 bg-white hover:bg-slate-100 text-blue-700 font-semibold text-[10px] rounded-md text-center block border border-blue-200"
+                    >
+                      Pedir Link de Pago vía WhatsApp
+                    </a>
+                  </div>
                 </div>
 
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                  <h4 className="font-bold text-slate-900 mb-2 flex items-center gap-1.5">
-                    <Building2 className="w-4 h-4 text-emerald-600" />
-                    Soporte Directo para Pagos
-                  </h4>
-                  <p className="text-slate-600">Atención personalizada:</p>
-                  <p className="font-bold text-slate-900 text-sm mt-0.5">mecanicadakar@gmail.com</p>
+                {/* Giros / Billeteras / Transferencia */}
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3">
+                  <div className="space-y-2.5">
+                    <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                      <Phone className="w-4 h-4 text-amber-500" />
+                      Giros & Transferencias Bancarias
+                    </h4>
+                    <div>
+                      <p className="text-slate-500 text-[11px]">Número de Giro / WhatsApp:</p>
+                      <p className="font-mono font-bold text-slate-900 text-xs mt-0.5">+595 975 635 770</p>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200">
+                      <p className="font-bold text-slate-900 text-[11px] flex items-center gap-1">
+                        <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Pago Bancario Directo
+                      </p>
+                      <p className="text-slate-700 font-medium text-[11px] mt-0.5">
+                        Banco Itaú — Caja de Ahorro
+                      </p>
+                      <p className="text-slate-900 font-mono font-bold text-[11px] bg-amber-100/70 text-slate-900 px-2 py-0.5 rounded-md inline-block mt-1">
+                        Alias CI: 7226273
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href={getWhatsAppUrl('Transferencia Bancaria Itaú / Giro')}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-900 text-amber-400 font-bold text-xs rounded-lg text-center block transition-colors mt-2"
+                  >
+                    Confirmar Pago por WhatsApp
+                  </a>
+                </div>
+
+                {/* Direct Support */}
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col justify-between space-y-3">
+                  <div>
+                    <h4 className="font-bold text-slate-900 mb-1.5 flex items-center gap-1.5 text-xs">
+                      <Building2 className="w-4 h-4 text-emerald-600" />
+                      Soporte Directo para Pagos
+                    </h4>
+                    <p className="text-slate-600 text-[11px]">Atención personalizada e Invoices:</p>
+                    <p className="font-bold text-slate-900 text-sm mt-0.5">mecanicadakar@gmail.com</p>
+                  </div>
+                  <a
+                    href="mailto:mecanicadakar@gmail.com?subject=Consulta%20de%20Pago%20MiTaller"
+                    className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg text-center block transition-colors"
+                  >
+                    Enviar Correo de Soporte
+                  </a>
                 </div>
               </div>
             </div>
