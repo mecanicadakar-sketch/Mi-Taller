@@ -1,5 +1,6 @@
 import { WorkOrder, InventoryItem, OrderStatus } from '../types/tallerya';
-import { Wrench, Clock, CheckCircle2, AlertTriangle, ArrowRight, DollarSign, Car, Plus, AlertCircle } from 'lucide-react';
+import { Wrench, Clock, CheckCircle2, AlertTriangle, ArrowRight, DollarSign, Car, Plus, AlertCircle, Search } from 'lucide-react';
+import { matchesQuery } from '../utils/searchUtils';
 
 interface DashboardViewProps {
   workOrders: WorkOrder[];
@@ -8,6 +9,7 @@ interface DashboardViewProps {
   onNewWorkOrder: () => void;
   onNavigateTab: (tab: string) => void;
   searchTerm?: string;
+  setSearchTerm?: (term: string) => void;
 }
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; bg: string; text: string; border: string }> = {
@@ -26,19 +28,34 @@ export function DashboardView({
   onNewWorkOrder,
   onNavigateTab,
   searchTerm = '',
+  setSearchTerm,
 }: DashboardViewProps) {
+  const q = searchTerm.trim();
+
+  // All matches including delivered when searching
+  const searchResults = q
+    ? workOrders.filter(
+        (o) =>
+          matchesQuery(o.numeroOrden, q) ||
+          matchesQuery(o.vehiculo?.patente, q) ||
+          matchesQuery(o.clienteNombre, q) ||
+          matchesQuery(o.vehiculo?.marca, q) ||
+          matchesQuery(o.vehiculo?.modelo, q) ||
+          matchesQuery(o.fallaReportada, q)
+      )
+    : [];
+
   // Stats calculations
   const activeOrders = workOrders.filter((o) => {
     if (o.estado === 'entregado') return false;
-    if (!searchTerm.trim()) return true;
-    const q = searchTerm.toLowerCase().trim();
+    if (!q) return true;
     return (
-      o.numeroOrden.toLowerCase().includes(q) ||
-      o.vehiculo.patente.toLowerCase().includes(q) ||
-      o.clienteNombre.toLowerCase().includes(q) ||
-      o.vehiculo.marca.toLowerCase().includes(q) ||
-      o.vehiculo.modelo.toLowerCase().includes(q) ||
-      (o.fallaReportada && o.fallaReportada.toLowerCase().includes(q))
+      matchesQuery(o.numeroOrden, q) ||
+      matchesQuery(o.vehiculo?.patente, q) ||
+      matchesQuery(o.clienteNombre, q) ||
+      matchesQuery(o.vehiculo?.marca, q) ||
+      matchesQuery(o.vehiculo?.modelo, q) ||
+      matchesQuery(o.fallaReportada, q)
     );
   });
   const inRepair = workOrders.filter((o) => o.estado === 'reparacion');
@@ -46,6 +63,8 @@ export function DashboardView({
   
   const estimatedRevenue = activeOrders.reduce((sum, o) => sum + (o.totalEstimado || 0), 0);
   const lowStockItems = inventory.filter((item) => item.stockActual <= item.stockMinimo);
+
+  const displayOrdersList = q ? searchResults : activeOrders.slice(0, 5);
 
   return (
     <div className="p-6 space-y-6">
@@ -148,8 +167,12 @@ export function DashboardView({
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
-              <h3 className="font-bold text-slate-900 text-base">Órdenes de Trabajo Recientes</h3>
-              <p className="text-xs text-slate-500">Últimos vehículos en proceso</p>
+              <h3 className="font-bold text-slate-900 text-base">
+                {q ? `Resultados de Búsqueda para "${q}"` : 'Órdenes de Trabajo Recientes'}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {q ? `Se encontraron ${displayOrdersList.length} orden(es)` : 'Últimos vehículos en proceso'}
+              </p>
             </div>
             <button
               onClick={() => onNavigateTab('orders')}
@@ -161,7 +184,12 @@ export function DashboardView({
           </div>
 
           <div className="space-y-3">
-            {activeOrders.slice(0, 5).map((order) => {
+            {displayOrdersList.length === 0 ? (
+              <div className="p-6 text-center text-slate-500 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                No se encontraron órdenes que coincidan con "<span className="font-semibold text-slate-800">{q}</span>".
+              </div>
+            ) : (
+              displayOrdersList.map((order) => {
               const statusInfo = STATUS_CONFIG[order.estado];
               return (
                 <div
@@ -199,7 +227,7 @@ export function DashboardView({
                   </div>
                 </div>
               );
-            })}
+            }))}
           </div>
         </div>
 

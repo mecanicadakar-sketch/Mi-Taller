@@ -2,14 +2,21 @@ import React, { useState } from 'react';
 import { Budget } from '../types/tallerya';
 import { PrintBudgetModal } from './PrintBudgetModal';
 import { Plus, Printer, FileText, Trash2, CheckCircle, Clock, XCircle, Search } from 'lucide-react';
+import { matchesQuery } from '../utils/searchUtils';
 
 interface BudgetViewProps {
   budgets: Budget[];
   onAddBudget: (budget: Budget) => void;
   searchTerm?: string;
+  setSearchTerm?: (term: string) => void;
 }
 
-export function BudgetView({ budgets, onAddBudget, searchTerm = '' }: BudgetViewProps) {
+export function BudgetView({
+  budgets,
+  onAddBudget,
+  searchTerm = '',
+  setSearchTerm,
+}: BudgetViewProps) {
   const [selectedForPrint, setSelectedForPrint] = useState<Budget | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [localSearch, setLocalSearch] = useState('');
@@ -20,17 +27,17 @@ export function BudgetView({ budgets, onAddBudget, searchTerm = '' }: BudgetView
   const [vehiculoInfo, setVehiculoInfo] = useState('');
   const [descuento, setDescuento] = useState(0);
 
-  const activeSearch = (searchTerm || localSearch).trim();
+  const activeSearch = searchTerm !== undefined && searchTerm !== '' ? searchTerm : localSearch;
 
   const filteredBudgets = budgets.filter((b) => {
-    const q = activeSearch.toLowerCase();
+    const q = activeSearch.trim();
     if (!q) return true;
     return (
-      b.numeroPresupuesto.toLowerCase().includes(q) ||
-      b.clienteNombre.toLowerCase().includes(q) ||
-      (b.clienteTelefono && b.clienteTelefono.toLowerCase().includes(q)) ||
-      (b.vehiculoInfo && b.vehiculoInfo.toLowerCase().includes(q)) ||
-      b.items.some((item) => item.descripcion.toLowerCase().includes(q))
+      matchesQuery(b.numeroPresupuesto, q) ||
+      matchesQuery(b.clienteNombre, q) ||
+      matchesQuery(b.clienteTelefono, q) ||
+      matchesQuery(b.vehiculoInfo, q) ||
+      b.items?.some((item) => matchesQuery(item.descripcion, q))
     );
   });
 
@@ -118,8 +125,11 @@ export function BudgetView({ budgets, onAddBudget, searchTerm = '' }: BudgetView
         <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
         <input
           type="text"
-          value={searchTerm || localSearch}
-          onChange={(e) => setLocalSearch(e.target.value)}
+          value={activeSearch}
+          onChange={(e) => {
+            if (setSearchTerm) setSearchTerm(e.target.value);
+            setLocalSearch(e.target.value);
+          }}
           placeholder="Buscar por cliente, N° presupuesto o detalle..."
           className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
         />

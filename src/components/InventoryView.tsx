@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
 import { InventoryItem } from '../types/tallerya';
 import { Search, Plus, Package, AlertTriangle, ArrowUpDown, Edit3, CheckCircle2 } from 'lucide-react';
+import { matchesQuery } from '../utils/searchUtils';
 
 interface InventoryViewProps {
   inventory: InventoryItem[];
   onAddItem: (item: InventoryItem) => void;
   onUpdateStock: (itemId: string, newStock: number) => void;
   searchTerm?: string;
+  setSearchTerm?: (term: string) => void;
 }
 
-export function InventoryView({ inventory, onAddItem, onUpdateStock, searchTerm = '' }: InventoryViewProps) {
+export function InventoryView({
+  inventory,
+  onAddItem,
+  onUpdateStock,
+  searchTerm = '',
+  setSearchTerm,
+}: InventoryViewProps) {
   const [localSearch, setLocalSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todas');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -26,17 +34,17 @@ export function InventoryView({ inventory, onAddItem, onUpdateStock, searchTerm 
 
   const categories = ['todas', ...Array.from(new Set(inventory.map((i) => i.categoria)))];
 
-  const activeSearch = (searchTerm || localSearch).trim();
+  const activeSearch = searchTerm !== undefined && searchTerm !== '' ? searchTerm : localSearch;
 
   const filteredItems = inventory.filter((item) => {
     const matchesCat = selectedCategory === 'todas' || item.categoria === selectedCategory;
-    const q = activeSearch.toLowerCase();
+    const q = activeSearch.trim();
     const matchesQ =
       !q ||
-      item.nombre.toLowerCase().includes(q) ||
-      item.codigo.toLowerCase().includes(q) ||
-      item.categoria.toLowerCase().includes(q) ||
-      (item.ubicacion && item.ubicacion.toLowerCase().includes(q));
+      matchesQuery(item.nombre, q) ||
+      matchesQuery(item.codigo, q) ||
+      matchesQuery(item.categoria, q) ||
+      matchesQuery(item.ubicacion, q);
     return matchesCat && matchesQ;
   });
 
@@ -88,8 +96,11 @@ export function InventoryView({ inventory, onAddItem, onUpdateStock, searchTerm 
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            value={searchTerm || localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
+            value={activeSearch}
+            onChange={(e) => {
+              if (setSearchTerm) setSearchTerm(e.target.value);
+              setLocalSearch(e.target.value);
+            }}
             placeholder="Buscar repuesto por código o nombre..."
             className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
           />

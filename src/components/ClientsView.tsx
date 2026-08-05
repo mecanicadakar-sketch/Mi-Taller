@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
 import { Client, Vehicle } from '../types/tallerya';
 import { Search, UserPlus, Phone, Mail, Car, Plus, Wrench, ChevronRight } from 'lucide-react';
+import { matchesQuery } from '../utils/searchUtils';
 
 interface ClientsViewProps {
   clients: Client[];
   onAddClient: (client: Client) => void;
   onNewWorkOrderForVehicle: (client: Client, vehicle: Vehicle) => void;
   searchTerm?: string;
+  setSearchTerm?: (term: string) => void;
 }
 
-export function ClientsView({ clients, onAddClient, onNewWorkOrderForVehicle, searchTerm = '' }: ClientsViewProps) {
+export function ClientsView({
+  clients,
+  onAddClient,
+  onNewWorkOrderForVehicle,
+  searchTerm = '',
+  setSearchTerm,
+}: ClientsViewProps) {
   const [localSearch, setLocalSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -26,20 +34,20 @@ export function ClientsView({ clients, onAddClient, onNewWorkOrderForVehicle, se
   const [anio, setAnio] = useState(2022);
   const [kilometraje, setKilometraje] = useState(50000);
 
-  const activeSearch = (searchTerm || localSearch).trim();
+  const activeSearch = searchTerm !== undefined && searchTerm !== '' ? searchTerm : localSearch;
 
   const filteredClients = clients.filter((c) => {
-    const q = activeSearch.toLowerCase();
+    const q = activeSearch.trim();
     if (!q) return true;
     return (
-      c.nombre.toLowerCase().includes(q) ||
-      c.telefono.toLowerCase().includes(q) ||
-      (c.email && c.email.toLowerCase().includes(q)) ||
-      c.vehiculos.some(
+      matchesQuery(c.nombre, q) ||
+      matchesQuery(c.telefono, q) ||
+      matchesQuery(c.email, q) ||
+      c.vehiculos?.some(
         (v) =>
-          v.patente.toLowerCase().includes(q) ||
-          v.marca.toLowerCase().includes(q) ||
-          v.modelo.toLowerCase().includes(q)
+          matchesQuery(v.patente, q) ||
+          matchesQuery(v.marca, q) ||
+          matchesQuery(v.modelo, q)
       )
     );
   });
@@ -103,8 +111,11 @@ export function ClientsView({ clients, onAddClient, onNewWorkOrderForVehicle, se
         <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
         <input
           type="text"
-          value={searchTerm || localSearch}
-          onChange={(e) => setLocalSearch(e.target.value)}
+          value={activeSearch}
+          onChange={(e) => {
+            if (setSearchTerm) setSearchTerm(e.target.value);
+            setLocalSearch(e.target.value);
+          }}
           placeholder="Buscar por cliente, teléfono o patente..."
           className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
         />

@@ -431,6 +431,12 @@ export default function App() {
           onInstallApp={() => setShowForceInstallModal(true)}
           onOpenSubscriptionModal={() => setShowSubscriptionModal(true)}
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
+          workOrders={workOrders}
+          clients={clients}
+          inventory={inventory}
+          budgets={budgets}
+          onSelectOrder={setSelectedOrder}
+          onNavigateTab={setActiveTab}
         />
 
         <main className="flex-1">
@@ -446,6 +452,7 @@ export default function App() {
               }}
               onNavigateTab={setActiveTab}
               searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
             />
           )}
 
@@ -460,6 +467,7 @@ export default function App() {
               }}
               onUpdateStatus={handleUpdateOrderStatus}
               searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
             />
           )}
 
@@ -469,6 +477,7 @@ export default function App() {
               onAddClient={handleAddClient}
               onNewWorkOrderForVehicle={handleNewOrderForVehicle}
               searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
             />
           )}
 
@@ -478,11 +487,17 @@ export default function App() {
               onAddItem={handleAddInventoryItem}
               onUpdateStock={handleUpdateStock}
               searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
             />
           )}
 
           {activeTab === 'budgets' && (
-            <BudgetView budgets={budgets} onAddBudget={handleAddBudget} searchTerm={searchTerm} />
+            <BudgetView
+              budgets={budgets}
+              onAddBudget={handleAddBudget}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+            />
           )}
         </main>
       </div>

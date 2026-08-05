@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { WorkOrder, OrderStatus } from '../types/tallerya';
 import { Plus, Search, Filter, Car, LayoutGrid, List, ChevronRight, User, Wrench, Clock, CheckCircle2 } from 'lucide-react';
+import { matchesQuery } from '../utils/searchUtils';
 
 interface WorkOrdersViewProps {
   workOrders: WorkOrder[];
@@ -8,6 +9,7 @@ interface WorkOrdersViewProps {
   onNewWorkOrder: () => void;
   onUpdateStatus: (orderId: string, newStatus: OrderStatus) => void;
   searchTerm?: string;
+  setSearchTerm?: (term: string) => void;
 }
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; bg: string; text: string; border: string }> = {
@@ -34,25 +36,26 @@ export function WorkOrdersView({
   onNewWorkOrder,
   onUpdateStatus,
   searchTerm = '',
+  setSearchTerm,
 }: WorkOrdersViewProps) {
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [localSearch, setLocalSearch] = useState<string>('');
 
-  const activeSearch = (searchTerm || localSearch).trim();
+  const activeSearch = searchTerm !== undefined && searchTerm !== '' ? searchTerm : localSearch;
 
   const filteredOrders = workOrders.filter((order) => {
     const matchesStatus = statusFilter === 'todos' || order.estado === statusFilter;
-    const query = activeSearch.toLowerCase();
-    const matchesQuery =
-      !query ||
-      order.numeroOrden.toLowerCase().includes(query) ||
-      order.vehiculo.patente.toLowerCase().includes(query) ||
-      order.clienteNombre.toLowerCase().includes(query) ||
-      order.vehiculo.marca.toLowerCase().includes(query) ||
-      order.vehiculo.modelo.toLowerCase().includes(query) ||
-      (order.fallaReportada && order.fallaReportada.toLowerCase().includes(query));
-    return matchesStatus && matchesQuery;
+    const q = activeSearch.trim();
+    const matchesQ =
+      !q ||
+      matchesQuery(order.numeroOrden, q) ||
+      matchesQuery(order.vehiculo?.patente, q) ||
+      matchesQuery(order.clienteNombre, q) ||
+      matchesQuery(order.vehiculo?.marca, q) ||
+      matchesQuery(order.vehiculo?.modelo, q) ||
+      matchesQuery(order.fallaReportada, q);
+    return matchesStatus && matchesQ;
   });
 
   return (
@@ -107,8 +110,11 @@ export function WorkOrdersView({
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            value={searchTerm || localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
+            value={activeSearch}
+            onChange={(e) => {
+              if (setSearchTerm) setSearchTerm(e.target.value);
+              setLocalSearch(e.target.value);
+            }}
             placeholder="Filtrar por patente, cliente..."
             className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
           />
