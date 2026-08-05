@@ -11,7 +11,8 @@ import {
   saveBudget,
   saveMechanic,
   deleteMechanic,
-  updateWorkshopSubscription
+  updateWorkshopSubscription,
+  validateAndApplyLicenseCodeInFirestore
 } from './services/tallerService';
 
 import { Sidebar } from './components/Sidebar';
@@ -282,12 +283,33 @@ export default function App() {
 
   const handleActivateLicense = async (code: string): Promise<boolean> => {
     const cleanCode = code.trim().toUpperCase();
-    if (cleanCode === 'TALLERYA2026' || cleanCode === 'PRO' || cleanCode.startsWith('TALLERYA-')) {
-      if (currentUser) {
-        await updateWorkshopSubscription(currentUser.uid, 'pro', 'active');
-      } else if (workshop) {
+    if (!cleanCode) return false;
+
+    const tallerId = currentUser?.uid || 'demo-taller';
+    const tallerName = workshop?.nombreTaller || currentUser?.email || 'Mi Taller';
+
+    const result = await validateAndApplyLicenseCodeInFirestore(tallerId, tallerName, cleanCode);
+
+    if (result.success) {
+      if (workshop) {
         setWorkshop({
           ...workshop,
+          subscription: {
+            plan: 'pro',
+            status: 'active',
+            trialEndsAt: new Date().toISOString(),
+            subscriptionEndsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            maxWorkOrders: 999999,
+          },
+        });
+      } else {
+        setWorkshop({
+          id: tallerId,
+          nombreTaller: tallerName,
+          email: currentUser?.email || 'taller@mitaller.com',
+          telefono: '',
+          direccion: '',
+          moneda: 'PYG',
           subscription: {
             plan: 'pro',
             status: 'active',

@@ -303,24 +303,28 @@ export async function adminUpdateWorkshopSubscription(
   status: 'active' | 'trial' | 'expired',
   daysToAdd: number = 30
 ): Promise<void> {
-  const docRef = doc(db, 'workshops', tallerId);
-  const now = new Date();
-  const subEnds = new Date();
-  subEnds.setDate(subEnds.getDate() + daysToAdd);
+  try {
+    const docRef = doc(db, 'workshops', tallerId);
+    const now = new Date();
+    const subEnds = new Date();
+    subEnds.setDate(subEnds.getDate() + daysToAdd);
 
-  await setDoc(
-    docRef,
-    {
-      subscription: {
-        plan,
-        status,
-        trialEndsAt: now.toISOString(),
-        subscriptionEndsAt: subEnds.toISOString(),
-        maxWorkOrders: plan === 'pro' || plan === 'enterprise' ? 999999 : 50,
+    await setDoc(
+      docRef,
+      {
+        subscription: {
+          plan,
+          status,
+          trialEndsAt: now.toISOString(),
+          subscriptionEndsAt: subEnds.toISOString(),
+          maxWorkOrders: plan === 'pro' || plan === 'enterprise' ? 999999 : 50,
+        },
       },
-    },
-    { merge: true }
-  );
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('Could not update workshop subscription in Firestore:', err);
+  }
 }
 
 // License Codes Management
@@ -335,13 +339,33 @@ export interface LicenseCodeDoc {
   createdAt: string;
 }
 
+const LOCAL_LICENSES_KEY = 'mitaller_created_licenses';
+
+function getLocalLicensesBackup(): LicenseCodeDoc[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_LICENSES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function saveLocalLicenseBackup(lic: LicenseCodeDoc) {
+  try {
+    const list = getLocalLicensesBackup();
+    const updated = [lic, ...list.filter((item) => item.code !== lic.code)];
+    localStorage.setItem(LOCAL_LICENSES_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.warn('Could not save license backup to localStorage:', err);
+  }
+}
+
 export async function createLicenseCodeInFirestore(
   code: string,
   plan: 'pro' | 'basico' = 'pro',
   days: number = 30
 ): Promise<void> {
   const cleanCode = code.trim().toUpperCase();
-  const docRef = doc(db, 'licenses', cleanCode);
   const data: LicenseCodeDoc = {
     code: cleanCode,
     plan,
@@ -349,17 +373,38 @@ export async function createLicenseCodeInFirestore(
     used: false,
     createdAt: new Date().toISOString(),
   };
-  await setDoc(docRef, data, { merge: true });
+
+  // 1. Save locally as immediate backup
+  saveLocalLicenseBackup(data);
+
+  // 2. Try saving to Firestore
+  try {
+    const docRef = doc(db, 'licenses', cleanCode);
+    await setDoc(docRef, data, { merge: true });
+  } catch (err) {
+    console.error('Error writing license to Firestore, saved to local storage backup:', err);
+    // Don't crash if local backup succeeded
+  }
 }
 
 export async function getAllLicenseCodesFromFirestore(): Promise<LicenseCodeDoc[]> {
+  const localList = getLocalLicensesBackup();
   try {
     const ref = collection(db, 'licenses');
     const snapshot = await getDocs(ref);
-    return snapshot.docs.map((d) => d.data() as LicenseCodeDoc);
+    const remoteList = snapshot.docs.map((d) => d.data() as LicenseCodeDoc);
+
+    // Merge remote and local (remote takes precedence, local fills any unsynced)
+    const map = new Map<string, LicenseCodeDoc>();
+    localList.forEach((lic) => map.set(lic.code, lic));
+    remoteList.forEach((lic) => map.set(lic.code, lic));
+
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   } catch (error) {
-    console.error('Error fetching license codes:', error);
-    return [];
+    console.error('Error fetching license codes from Firestore, returning local backup:', error);
+    return localList;
   }
 }
 
@@ -411,6 +456,26 @@ export async function validateAndApplyLicenseCodeInFirestore(
         message: `¡Licencia activada con éxito! Se han otorgado ${licenseData.days} días de Plan ${licenseData.plan.toUpperCase()}.`,
       };
     } else {
+      // Check local backup list
+      const localList = getLocalLicensesBackup();
+      const matchedLocal = localList.find((l) => l.code === cleanCode);
+      if (matchedLocal) {
+        if (matchedLocal.used) {
+          return { success: false, message: 'Este código ya fue utilizado.' };
+        }
+        matchedLocal.used = true;
+        matchedLocal.usedByTallerId = tallerId;
+        matchedLocal.usedByTallerName = tallerName;
+        matchedLocal.usedAt = new Date().toISOString();
+        saveLocalLicenseBackup(matchedLocal);
+
+        await adminUpdateWorkshopSubscription(tallerId, matchedLocal.plan, 'active', matchedLocal.days || 30);
+        return {
+          success: true,
+          message: `¡Licencia activada con éxito! Se han otorgado ${matchedLocal.days} días de Plan ${matchedLocal.plan.toUpperCase()}.`,
+        };
+      }
+
       // Fallback for codes starting with PRO- or TALLERYA-
       if (cleanCode.startsWith('PRO-') || cleanCode.startsWith('TALLERYA-')) {
         await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', 30);
