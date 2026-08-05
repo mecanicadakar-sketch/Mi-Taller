@@ -491,9 +491,16 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
                             </div>
 
                             {lic.used && (
-                              <p className="text-[11px] text-slate-500">
-                                Canjeado por: <strong className="text-slate-300">{lic.usedByTallerName || lic.usedByTallerId}</strong>
-                              </p>
+                              <div className="text-[11px] text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-800 space-y-0.5">
+                                <p>
+                                  Canjeado por: <strong className="text-amber-300">{lic.usedByTallerName || lic.usedByTallerId || 'Taller'}</strong>
+                                </p>
+                                {lic.usedAt && (
+                                  <p className="text-[10px] text-slate-500">
+                                    Fecha de activación: {new Date(lic.usedAt).toLocaleString()}
+                                  </p>
+                                )}
+                              </div>
                             )}
 
                             {!lic.used && (

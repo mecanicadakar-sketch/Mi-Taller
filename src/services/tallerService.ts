@@ -287,10 +287,20 @@ export async function getAllWorkshops(): Promise<Workshop[]> {
   try {
     const ref = collection(db, 'workshops');
     const snapshot = await getDocs(ref);
-    return snapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...docSnap.data(),
-    } as Workshop));
+    return snapshot.docs.map((docSnap) => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        nombreTaller: data.nombreTaller || data.email || `Taller (${docSnap.id.substring(0, 6)})`,
+        nombreOwner: data.nombreOwner || 'Propietario',
+        email: data.email || '',
+        telefono: data.telefono || '',
+        direccion: data.direccion || '',
+        createdAt: data.createdAt || new Date().toISOString(),
+        subscription: data.subscription || { plan: 'trial', status: 'trial' },
+        ...data,
+      } as Workshop;
+    });
   } catch (error) {
     console.error('Error fetching all workshops:', error);
     return [];
@@ -301,27 +311,40 @@ export async function adminUpdateWorkshopSubscription(
   tallerId: string,
   plan: 'trial' | 'basico' | 'pro' | 'enterprise',
   status: 'active' | 'trial' | 'expired',
-  daysToAdd: number = 30
+  daysToAdd: number = 30,
+  tallerName?: string,
+  tallerEmail?: string
 ): Promise<void> {
   try {
     const docRef = doc(db, 'workshops', tallerId);
+    let existingData: Partial<Workshop> = {};
+    try {
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        existingData = snap.data() as Workshop;
+      }
+    } catch (e) {}
+
     const now = new Date();
     const subEnds = new Date();
     subEnds.setDate(subEnds.getDate() + daysToAdd);
 
-    await setDoc(
-      docRef,
-      {
-        subscription: {
-          plan,
-          status,
-          trialEndsAt: now.toISOString(),
-          subscriptionEndsAt: subEnds.toISOString(),
-          maxWorkOrders: plan === 'pro' || plan === 'enterprise' ? 999999 : 50,
-        },
+    const updatedData = {
+      ...existingData,
+      id: tallerId,
+      nombreTaller: existingData.nombreTaller || tallerName || `Taller (${tallerId.substring(0, 6)})`,
+      nombreOwner: existingData.nombreOwner || 'Propietario',
+      email: existingData.email || tallerEmail || '',
+      subscription: {
+        plan,
+        status,
+        trialEndsAt: existingData.subscription?.trialEndsAt || now.toISOString(),
+        subscriptionEndsAt: subEnds.toISOString(),
+        maxWorkOrders: plan === 'pro' || plan === 'enterprise' ? 999999 : 50,
       },
-      { merge: true }
-    );
+    };
+
+    await setDoc(docRef, updatedData, { merge: true });
   } catch (err) {
     console.warn('Could not update workshop subscription in Firestore:', err);
   }
@@ -383,7 +406,6 @@ export async function createLicenseCodeInFirestore(
     await setDoc(docRef, data, { merge: true });
   } catch (err) {
     console.error('Error writing license to Firestore, saved to local storage backup:', err);
-    // Don't crash if local backup succeeded
   }
 }
 
@@ -411,7 +433,8 @@ export async function getAllLicenseCodesFromFirestore(): Promise<LicenseCodeDoc[
 export async function validateAndApplyLicenseCodeInFirestore(
   tallerId: string,
   tallerName: string,
-  inputCode: string
+  inputCode: string,
+  tallerEmail?: string
 ): Promise<{ success: boolean; message: string }> {
   const cleanCode = inputCode.trim().toUpperCase();
   if (!cleanCode) {
@@ -420,77 +443,98 @@ export async function validateAndApplyLicenseCodeInFirestore(
 
   // Master codes check
   if (cleanCode === 'TALLERYA2026' || cleanCode === 'PRO' || cleanCode === 'MEKANICADAKAR') {
-    await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', 365);
+    await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', 365, tallerName, tallerEmail);
     return { success: true, message: '¡Licencia Maestra activada! Plan PRO de 1 año aplicado.' };
   }
 
   try {
-    // Check Firestore licenses collection
     const licenseRef = doc(db, 'licenses', cleanCode);
-    const snap = await getDoc(licenseRef);
+    let licenseData: LicenseCodeDoc | null = null;
 
-    if (snap.exists()) {
-      const licenseData = snap.data() as LicenseCodeDoc;
+    try {
+      const snap = await getDoc(licenseRef);
+      if (snap.exists()) {
+        licenseData = snap.data() as LicenseCodeDoc;
+      }
+    } catch (e) {
+      console.warn('Error reading license from Firestore:', e);
+    }
+
+    if (!licenseData) {
+      const localList = getLocalLicensesBackup();
+      const matchedLocal = localList.find((l) => l.code === cleanCode);
+      if (matchedLocal) {
+        licenseData = matchedLocal;
+      }
+    }
+
+    if (licenseData) {
       if (licenseData.used) {
-        return { success: false, message: `Este código ya fue utilizado por ${licenseData.usedByTallerName || 'otro taller'}.` };
+        return {
+          success: false,
+          message: `Este código ya fue utilizado por ${licenseData.usedByTallerName || licenseData.usedByTallerId || 'otro taller'}.`
+        };
       }
 
-      // Mark license as used
-      await updateDoc(licenseRef, {
+      // Mark license as used both in Firestore and local backup
+      const updatedLicense: LicenseCodeDoc = {
+        ...licenseData,
         used: true,
         usedByTallerId: tallerId,
         usedByTallerName: tallerName,
-        usedAt: new Date().toISOString(),
-      });
+        usedAt: new Date().toISOString()
+      };
 
-      // Upgrade workshop
+      saveLocalLicenseBackup(updatedLicense);
+
+      try {
+        await setDoc(licenseRef, updatedLicense, { merge: true });
+      } catch (err) {
+        console.warn('Could not update license doc in Firestore:', err);
+      }
+
+      // Upgrade workshop in Firestore
       await adminUpdateWorkshopSubscription(
         tallerId,
-        licenseData.plan,
+        licenseData.plan || 'pro',
         'active',
-        licenseData.days || 30
+        licenseData.days || 30,
+        tallerName,
+        tallerEmail
       );
 
       return {
         success: true,
-        message: `¡Licencia activada con éxito! Se han otorgado ${licenseData.days} días de Plan ${licenseData.plan.toUpperCase()}.`,
+        message: `¡Licencia activada con éxito! Se han otorgado ${licenseData.days || 30} días de Plan ${(licenseData.plan || 'pro').toUpperCase()}.`,
       };
-    } else {
-      // Check local backup list
-      const localList = getLocalLicensesBackup();
-      const matchedLocal = localList.find((l) => l.code === cleanCode);
-      if (matchedLocal) {
-        if (matchedLocal.used) {
-          return { success: false, message: 'Este código ya fue utilizado.' };
-        }
-        matchedLocal.used = true;
-        matchedLocal.usedByTallerId = tallerId;
-        matchedLocal.usedByTallerName = tallerName;
-        matchedLocal.usedAt = new Date().toISOString();
-        saveLocalLicenseBackup(matchedLocal);
-
-        await adminUpdateWorkshopSubscription(tallerId, matchedLocal.plan, 'active', matchedLocal.days || 30);
-        return {
-          success: true,
-          message: `¡Licencia activada con éxito! Se han otorgado ${matchedLocal.days} días de Plan ${matchedLocal.plan.toUpperCase()}.`,
-        };
-      }
-
-      // Fallback for codes starting with PRO- or TALLERYA-
-      if (cleanCode.startsWith('PRO-') || cleanCode.startsWith('TALLERYA-')) {
-        await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', 30);
-        return { success: true, message: '¡Código de Licencia PRO validado! 30 días de acceso concedidos.' };
-      }
-      return { success: false, message: 'Código de licencia no encontrado o inválido. Contacta a soporte.' };
     }
+
+    // Fallback if code starts with PRO- or TALLERYA-
+    if (cleanCode.startsWith('PRO-') || cleanCode.startsWith('TALLERYA-')) {
+      const fallbackLic: LicenseCodeDoc = {
+        code: cleanCode,
+        plan: 'pro',
+        days: 30,
+        used: true,
+        usedByTallerId: tallerId,
+        usedByTallerName: tallerName,
+        usedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      };
+
+      saveLocalLicenseBackup(fallbackLic);
+      try {
+        await setDoc(licenseRef, fallbackLic, { merge: true });
+      } catch (e) {}
+
+      await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', 30, tallerName, tallerEmail);
+      return { success: true, message: '¡Código de Licencia PRO validado! 30 días de Plan PRO activados.' };
+    }
+
+    return { success: false, message: 'Código de licencia no encontrado o inválido. Contacta a soporte por WhatsApp.' };
   } catch (err) {
     console.error('Error validating license code:', err);
-    // Offline / fallback activation
-    if (cleanCode.startsWith('PRO-') || cleanCode.startsWith('TALLERYA-')) {
-      await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', 30);
-      return { success: true, message: '¡Código de Licencia PRO validado correctamente!' };
-    }
-    return { success: false, message: 'Error de conexión al validar licencia.' };
+    return { success: false, message: 'Error de conexión al validar la licencia. Intenta nuevamente.' };
   }
 }
 

@@ -12,7 +12,8 @@ import {
   saveMechanic,
   deleteMechanic,
   updateWorkshopSubscription,
-  validateAndApplyLicenseCodeInFirestore
+  validateAndApplyLicenseCodeInFirestore,
+  createWorkshopProfile
 } from './services/tallerService';
 
 import { Sidebar } from './components/Sidebar';
@@ -121,7 +122,7 @@ export default function App() {
     // Subscribe to Firestore for logged in user's tallerId
     const unsubscribeFirestore = subscribeToWorkshopCollections(
       currentUser.uid,
-      (data) => {
+      async (data) => {
         setClients(data.clients);
         setInventory(data.inventory);
         setWorkOrders(data.workOrders);
@@ -131,6 +132,35 @@ export default function App() {
         }
         if (data.workshop) {
           setWorkshop(data.workshop);
+        } else {
+          // Auto-create initial workshop profile doc in Firestore if missing
+          const defaultName = currentUser.displayName
+            ? `Taller de ${currentUser.displayName}`
+            : currentUser.email
+            ? `Taller ${currentUser.email.split('@')[0]}`
+            : 'Mecanica Dakar';
+
+          const newWorkshop: Workshop = {
+            id: currentUser.uid,
+            nombreTaller: defaultName,
+            nombreOwner: currentUser.displayName || 'Fabio Torres',
+            email: currentUser.email || 'mecanicadakar@gmail.com',
+            telefono: '+595975635770',
+            direccion: '',
+            createdAt: new Date().toISOString(),
+            subscription: {
+              plan: 'trial',
+              status: 'trial',
+              trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+              maxWorkOrders: 50,
+            },
+          };
+          setWorkshop(newWorkshop);
+          try {
+            await createWorkshopProfile(newWorkshop);
+          } catch (err) {
+            console.warn('Could not auto-create workshop profile:', err);
+          }
         }
       }
     );
@@ -286,9 +316,10 @@ export default function App() {
     if (!cleanCode) return false;
 
     const tallerId = currentUser?.uid || 'demo-taller';
-    const tallerName = workshop?.nombreTaller || currentUser?.email || 'Mi Taller';
+    const tallerName = workshop?.nombreTaller || currentUser?.displayName || currentUser?.email || 'Mi Taller';
+    const tallerEmail = currentUser?.email || workshop?.email || undefined;
 
-    const result = await validateAndApplyLicenseCodeInFirestore(tallerId, tallerName, cleanCode);
+    const result = await validateAndApplyLicenseCodeInFirestore(tallerId, tallerName, cleanCode, tallerEmail);
 
     if (result.success) {
       if (workshop) {
@@ -306,10 +337,11 @@ export default function App() {
         setWorkshop({
           id: tallerId,
           nombreTaller: tallerName,
+          nombreOwner: currentUser?.displayName || 'Propietario',
           email: currentUser?.email || 'taller@mitaller.com',
           telefono: '',
           direccion: '',
-          moneda: 'PYG',
+          createdAt: new Date().toISOString(),
           subscription: {
             plan: 'pro',
             status: 'active',
