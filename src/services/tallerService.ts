@@ -44,8 +44,25 @@ export async function createWorkshopProfile(workshop: Workshop): Promise<void> {
     },
   };
 
-  const docRef = doc(db, 'workshops', workshop.id);
-  await setDoc(docRef, workshopData, { merge: true });
+  try {
+    const backupListStr = localStorage.getItem('mitaller_workshops_registry');
+    const backupList: Workshop[] = backupListStr ? JSON.parse(backupListStr) : [];
+    const index = backupList.findIndex((w) => w.id === workshop.id || (w.email && w.email === workshop.email));
+    if (index >= 0) {
+      backupList[index] = { ...backupList[index], ...workshopData };
+    } else {
+      backupList.push(workshopData);
+    }
+    localStorage.setItem('mitaller_workshops_registry', JSON.stringify(backupList));
+    localStorage.setItem('mitaller_workshop_profile', JSON.stringify(workshopData));
+  } catch (e) {}
+
+  try {
+    const docRef = doc(db, 'workshops', workshop.id);
+    await setDoc(docRef, workshopData, { merge: true });
+  } catch (err) {
+    console.warn('Could not save workshop profile to Firestore:', err);
+  }
 }
 
 export async function updateWorkshopSubscription(
@@ -95,49 +112,85 @@ export function subscribeToWorkshopCollections(
   const emit = () => onData({ clients, inventory, workOrders, budgets, mechanics, workshop });
 
   // Workshop doc listener
-  const unsubWorkshop = onSnapshot(doc(db, 'workshops', tallerId), (docSnap) => {
-    if (docSnap.exists()) {
-      workshop = docSnap.data() as Workshop;
-    } else {
-      workshop = null;
+  const unsubWorkshop = onSnapshot(
+    doc(db, 'workshops', tallerId),
+    (docSnap) => {
+      if (docSnap.exists()) {
+        workshop = docSnap.data() as Workshop;
+      } else {
+        workshop = null;
+      }
+      emit();
+    },
+    (err) => {
+      console.warn('Firestore workshop listener warning:', err?.message || err);
     }
-    emit();
-  });
+  );
 
   // Clients query
   const qClients = query(collection(db, 'clients'), where('tallerId', '==', tallerId));
-  const unsubClients = onSnapshot(qClients, (snapshot) => {
-    clients = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Client));
-    emit();
-  });
+  const unsubClients = onSnapshot(
+    qClients,
+    (snapshot) => {
+      clients = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Client));
+      emit();
+    },
+    (err) => {
+      console.warn('Firestore clients listener warning:', err?.message || err);
+    }
+  );
 
   // Inventory query
   const qInventory = query(collection(db, 'inventory'), where('tallerId', '==', tallerId));
-  const unsubInventory = onSnapshot(qInventory, (snapshot) => {
-    inventory = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as InventoryItem));
-    emit();
-  });
+  const unsubInventory = onSnapshot(
+    qInventory,
+    (snapshot) => {
+      inventory = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as InventoryItem));
+      emit();
+    },
+    (err) => {
+      console.warn('Firestore inventory listener warning:', err?.message || err);
+    }
+  );
 
   // WorkOrders query
   const qOrders = query(collection(db, 'workOrders'), where('tallerId', '==', tallerId));
-  const unsubOrders = onSnapshot(qOrders, (snapshot) => {
-    workOrders = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as WorkOrder));
-    emit();
-  });
+  const unsubOrders = onSnapshot(
+    qOrders,
+    (snapshot) => {
+      workOrders = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as WorkOrder));
+      emit();
+    },
+    (err) => {
+      console.warn('Firestore workOrders listener warning:', err?.message || err);
+    }
+  );
 
   // Budgets query
   const qBudgets = query(collection(db, 'budgets'), where('tallerId', '==', tallerId));
-  const unsubBudgets = onSnapshot(qBudgets, (snapshot) => {
-    budgets = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Budget));
-    emit();
-  });
+  const unsubBudgets = onSnapshot(
+    qBudgets,
+    (snapshot) => {
+      budgets = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Budget));
+      emit();
+    },
+    (err) => {
+      console.warn('Firestore budgets listener warning:', err?.message || err);
+    }
+  );
 
   // Mechanics query
   const qMechanics = query(collection(db, 'mechanics'), where('tallerId', '==', tallerId));
-  const unsubMechanics = onSnapshot(qMechanics, (snapshot) => {
-    mechanics = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Mechanic));
-    emit();
-  });
+  const unsubMechanics = onSnapshot(
+    qMechanics,
+    (snapshot) => {
+      mechanics = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Mechanic));
+      emit();
+    },
+    (err) => {
+      console.warn('Firestore mechanics listener warning:', err?.message || err);
+    }
+  );
 
   return () => {
     unsubWorkshop();
@@ -268,7 +321,7 @@ export async function searchWorkOrdersByPatente(searchPatente: string): Promise<
           workshopsMap[tallerId] = wDoc.data() as Workshop;
         }
       } catch (err) {
-        console.error('Error fetching workshop details:', err);
+        console.warn('Error fetching workshop details:', err);
       }
     }
 
@@ -277,19 +330,46 @@ export async function searchWorkOrdersByPatente(searchPatente: string): Promise<
 
     return { orders: matchedOrders, workshopsMap };
   } catch (error) {
-    console.error('Error searching work orders by patente:', error);
+    console.warn('Error searching work orders by patente:', error);
     return { orders: [], workshopsMap: {} };
   }
 }
 
 // Fetch all registered workshops (for Admin Panel)
 export async function getAllWorkshops(): Promise<Workshop[]> {
+  const workshopsMap: Record<string, Workshop> = {};
+
+  const addOrMergeWorkshop = (w: Partial<Workshop> & { id: string }) => {
+    const existing = workshopsMap[w.id];
+    const nombreTaller = w.nombreTaller || w.email || `Taller (${w.id.substring(0, 6)})`;
+    const nombreOwner = w.nombreOwner || existing?.nombreOwner || 'Propietario';
+    const email = w.email || existing?.email || '';
+    const telefono = w.telefono || existing?.telefono || '';
+    const direccion = w.direccion || existing?.direccion || '';
+    const createdAt = w.createdAt || existing?.createdAt || new Date().toISOString();
+    const subscription = w.subscription || existing?.subscription || { plan: 'trial', status: 'trial' };
+
+    workshopsMap[w.id] = {
+      id: w.id,
+      nombreTaller,
+      nombreOwner,
+      email,
+      telefono,
+      direccion,
+      createdAt,
+      subscription,
+      ...existing,
+      ...w,
+    } as Workshop;
+  };
+
+  // 1. Fetch from Firestore "workshops" collection
   try {
     const ref = collection(db, 'workshops');
     const snapshot = await getDocs(ref);
-    return snapshot.docs.map((docSnap) => {
+    snapshot.docs.forEach((docSnap) => {
       const data = docSnap.data();
-      return {
+      addOrMergeWorkshop({
         id: docSnap.id,
         nombreTaller: data.nombreTaller || data.email || `Taller (${docSnap.id.substring(0, 6)})`,
         nombreOwner: data.nombreOwner || 'Propietario',
@@ -299,12 +379,62 @@ export async function getAllWorkshops(): Promise<Workshop[]> {
         createdAt: data.createdAt || new Date().toISOString(),
         subscription: data.subscription || { plan: 'trial', status: 'trial' },
         ...data,
-      } as Workshop;
+      });
     });
   } catch (error) {
-    console.error('Error fetching all workshops:', error);
-    return [];
+    console.warn('Error fetching workshops collection from Firestore:', error);
   }
+
+  // 2. Supplement from used licenses in Firestore & Local storage
+  try {
+    const licenses = await getAllLicenseCodesFromFirestore();
+    licenses.forEach((lic) => {
+      if (lic.used && (lic.usedByTallerId || lic.usedByTallerName)) {
+        const tallerId = lic.usedByTallerId || `workshop-${lic.usedByTallerName?.toLowerCase().replace(/\s+/g, '-')}`;
+        addOrMergeWorkshop({
+          id: tallerId,
+          nombreTaller: lic.usedByTallerName || 'Taller Registrado',
+          nombreOwner: 'Propietario',
+          email: lic.usedByTallerName && lic.usedByTallerName.includes('@') ? lic.usedByTallerName : 'mecanicadakar@gmail.com',
+          createdAt: lic.usedAt || lic.createdAt || new Date().toISOString(),
+          subscription: {
+            plan: lic.plan || 'pro',
+            status: 'active',
+            trialEndsAt: new Date().toISOString(),
+            subscriptionEndsAt: new Date(Date.now() + (lic.days || 30) * 86400000).toISOString(),
+            maxWorkOrders: 999999,
+          },
+        });
+      }
+    });
+  } catch (err) {
+    console.warn('Error merging workshops from licenses:', err);
+  }
+
+  // 3. Supplement from localStorage backups
+  try {
+    const localProfileStr = localStorage.getItem('mitaller_workshop_profile');
+    if (localProfileStr) {
+      const localW = JSON.parse(localProfileStr) as Workshop;
+      if (localW && localW.id) {
+        addOrMergeWorkshop(localW);
+      }
+    }
+  } catch (e) {}
+
+  try {
+    const registryStr = localStorage.getItem('mitaller_workshops_registry');
+    if (registryStr) {
+      const registry = JSON.parse(registryStr) as Workshop[];
+      if (Array.isArray(registry)) {
+        registry.forEach((w) => {
+          if (w && w.id) addOrMergeWorkshop(w);
+        });
+      }
+    }
+  } catch (e) {}
+
+  return Object.values(workshopsMap);
 }
 
 export async function adminUpdateWorkshopSubscription(
@@ -343,6 +473,18 @@ export async function adminUpdateWorkshopSubscription(
         maxWorkOrders: plan === 'pro' || plan === 'enterprise' ? 999999 : 50,
       },
     };
+
+    try {
+      const backupListStr = localStorage.getItem('mitaller_workshops_registry');
+      const backupList: Workshop[] = backupListStr ? JSON.parse(backupListStr) : [];
+      const index = backupList.findIndex((w) => w.id === tallerId || (w.email && w.email === updatedData.email));
+      if (index >= 0) {
+        backupList[index] = { ...backupList[index], ...updatedData } as Workshop;
+      } else {
+        backupList.push(updatedData as Workshop);
+      }
+      localStorage.setItem('mitaller_workshops_registry', JSON.stringify(backupList));
+    } catch (e) {}
 
     await setDoc(docRef, updatedData, { merge: true });
   } catch (err) {
@@ -405,7 +547,7 @@ export async function createLicenseCodeInFirestore(
     const docRef = doc(db, 'licenses', cleanCode);
     await setDoc(docRef, data, { merge: true });
   } catch (err) {
-    console.error('Error writing license to Firestore, saved to local storage backup:', err);
+    console.warn('Error writing license to Firestore, saved to local storage backup:', err);
   }
 }
 
@@ -425,7 +567,7 @@ export async function getAllLicenseCodesFromFirestore(): Promise<LicenseCodeDoc[
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
   } catch (error) {
-    console.error('Error fetching license codes from Firestore, returning local backup:', error);
+    console.warn('Error fetching license codes from Firestore, returning local backup:', error);
     return localList;
   }
 }
@@ -533,7 +675,7 @@ export async function validateAndApplyLicenseCodeInFirestore(
 
     return { success: false, message: 'Código de licencia no encontrado o inválido. Contacta a soporte por WhatsApp.' };
   } catch (err) {
-    console.error('Error validating license code:', err);
+    console.warn('Error validating license code:', err);
     return { success: false, message: 'Error de conexión al validar la licencia. Intenta nuevamente.' };
   }
 }

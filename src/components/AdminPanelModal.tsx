@@ -80,7 +80,7 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
       setWorkshops(wList);
       setLicenses(lList);
     } catch (err: any) {
-      console.error('Error loading admin data:', err);
+      console.warn('Error loading admin data:', err);
       setActionError('Error al cargar datos desde Firestore: ' + (err.message || String(err)));
     } finally {
       setLoading(false);
