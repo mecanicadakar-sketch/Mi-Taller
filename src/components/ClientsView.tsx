@@ -6,10 +6,11 @@ interface ClientsViewProps {
   clients: Client[];
   onAddClient: (client: Client) => void;
   onNewWorkOrderForVehicle: (client: Client, vehicle: Vehicle) => void;
+  searchTerm?: string;
 }
 
-export function ClientsView({ clients, onAddClient, onNewWorkOrderForVehicle }: ClientsViewProps) {
-  const [search, setSearch] = useState('');
+export function ClientsView({ clients, onAddClient, onNewWorkOrderForVehicle, searchTerm = '' }: ClientsViewProps) {
+  const [localSearch, setLocalSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
 
   // New Client Form State
@@ -25,11 +26,15 @@ export function ClientsView({ clients, onAddClient, onNewWorkOrderForVehicle }: 
   const [anio, setAnio] = useState(2022);
   const [kilometraje, setKilometraje] = useState(50000);
 
+  const activeSearch = (searchTerm || localSearch).trim();
+
   const filteredClients = clients.filter((c) => {
-    const q = search.toLowerCase();
+    const q = activeSearch.toLowerCase();
+    if (!q) return true;
     return (
       c.nombre.toLowerCase().includes(q) ||
       c.telefono.toLowerCase().includes(q) ||
+      (c.email && c.email.toLowerCase().includes(q)) ||
       c.vehiculos.some(
         (v) =>
           v.patente.toLowerCase().includes(q) ||
@@ -98,8 +103,8 @@ export function ClientsView({ clients, onAddClient, onNewWorkOrderForVehicle }: 
         <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
         <input
           type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchTerm || localSearch}
+          onChange={(e) => setLocalSearch(e.target.value)}
           placeholder="Buscar por cliente, teléfono o patente..."
           className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
         />

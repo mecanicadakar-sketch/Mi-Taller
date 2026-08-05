@@ -7,6 +7,7 @@ interface WorkOrdersViewProps {
   onSelectOrder: (order: WorkOrder) => void;
   onNewWorkOrder: () => void;
   onUpdateStatus: (orderId: string, newStatus: OrderStatus) => void;
+  searchTerm?: string;
 }
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; bg: string; text: string; border: string }> = {
@@ -32,21 +33,25 @@ export function WorkOrdersView({
   onSelectOrder,
   onNewWorkOrder,
   onUpdateStatus,
+  searchTerm = '',
 }: WorkOrdersViewProps) {
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
-  const [search, setSearch] = useState<string>('');
+  const [localSearch, setLocalSearch] = useState<string>('');
+
+  const activeSearch = (searchTerm || localSearch).trim();
 
   const filteredOrders = workOrders.filter((order) => {
     const matchesStatus = statusFilter === 'todos' || order.estado === statusFilter;
-    const query = search.toLowerCase();
+    const query = activeSearch.toLowerCase();
     const matchesQuery =
       !query ||
       order.numeroOrden.toLowerCase().includes(query) ||
       order.vehiculo.patente.toLowerCase().includes(query) ||
       order.clienteNombre.toLowerCase().includes(query) ||
       order.vehiculo.marca.toLowerCase().includes(query) ||
-      order.vehiculo.modelo.toLowerCase().includes(query);
+      order.vehiculo.modelo.toLowerCase().includes(query) ||
+      (order.fallaReportada && order.fallaReportada.toLowerCase().includes(query));
     return matchesStatus && matchesQuery;
   });
 
@@ -102,8 +107,8 @@ export function WorkOrdersView({
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchTerm || localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
             placeholder="Filtrar por patente, cliente..."
             className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
           />

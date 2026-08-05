@@ -405,16 +405,10 @@ export default function App() {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => handleOpenAuth('login')}
-                className="text-slate-300 hover:text-white underline text-[11px]"
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1 rounded-md transition-colors flex items-center gap-1.5 text-[11px] shadow-xs"
               >
-                Ingresar
-              </button>
-              <button
-                onClick={() => handleOpenAuth('register')}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 text-[11px]"
-              >
-                <Sparkles className="w-3 h-3" />
-                Registrar Mi Taller
+                <Sparkles className="w-3.5 h-3.5" />
+                Acceder / Registrar Taller
               </button>
             </div>
           </div>
@@ -451,6 +445,7 @@ export default function App() {
                 setShowNewWorkOrderModal(true);
               }}
               onNavigateTab={setActiveTab}
+              searchTerm={searchTerm}
             />
           )}
 
@@ -464,6 +459,7 @@ export default function App() {
                 setShowNewWorkOrderModal(true);
               }}
               onUpdateStatus={handleUpdateOrderStatus}
+              searchTerm={searchTerm}
             />
           )}
 
@@ -472,6 +468,7 @@ export default function App() {
               clients={clients}
               onAddClient={handleAddClient}
               onNewWorkOrderForVehicle={handleNewOrderForVehicle}
+              searchTerm={searchTerm}
             />
           )}
 
@@ -480,11 +477,12 @@ export default function App() {
               inventory={inventory}
               onAddItem={handleAddInventoryItem}
               onUpdateStock={handleUpdateStock}
+              searchTerm={searchTerm}
             />
           )}
 
           {activeTab === 'budgets' && (
-            <BudgetView budgets={budgets} onAddBudget={handleAddBudget} />
+            <BudgetView budgets={budgets} onAddBudget={handleAddBudget} searchTerm={searchTerm} />
           )}
         </main>
       </div>

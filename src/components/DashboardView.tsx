@@ -7,6 +7,7 @@ interface DashboardViewProps {
   onSelectOrder: (order: WorkOrder) => void;
   onNewWorkOrder: () => void;
   onNavigateTab: (tab: string) => void;
+  searchTerm?: string;
 }
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; bg: string; text: string; border: string }> = {
@@ -24,9 +25,22 @@ export function DashboardView({
   onSelectOrder,
   onNewWorkOrder,
   onNavigateTab,
+  searchTerm = '',
 }: DashboardViewProps) {
   // Stats calculations
-  const activeOrders = workOrders.filter((o) => o.estado !== 'entregado');
+  const activeOrders = workOrders.filter((o) => {
+    if (o.estado === 'entregado') return false;
+    if (!searchTerm.trim()) return true;
+    const q = searchTerm.toLowerCase().trim();
+    return (
+      o.numeroOrden.toLowerCase().includes(q) ||
+      o.vehiculo.patente.toLowerCase().includes(q) ||
+      o.clienteNombre.toLowerCase().includes(q) ||
+      o.vehiculo.marca.toLowerCase().includes(q) ||
+      o.vehiculo.modelo.toLowerCase().includes(q) ||
+      (o.fallaReportada && o.fallaReportada.toLowerCase().includes(q))
+    );
+  });
   const inRepair = workOrders.filter((o) => o.estado === 'reparacion');
   const readyOrders = workOrders.filter((o) => o.estado === 'listo');
   

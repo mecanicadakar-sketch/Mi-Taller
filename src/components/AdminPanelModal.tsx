@@ -162,13 +162,22 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
 
   if (!isOpen) return null;
 
-  const filteredWorkshops = workshops.filter(
-    (w) =>
-      w.nombreTaller?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      w.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      w.nombreOwner?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      w.telefono?.includes(searchTerm)
-  );
+  const filteredWorkshops = workshops.filter((w) => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase().trim();
+    const name = (w.nombreTaller || w.email || w.id || '').toLowerCase();
+    const email = (w.email || '').toLowerCase();
+    const owner = (w.nombreOwner || '').toLowerCase();
+    const phone = w.telefono || '';
+    const id = (w.id || '').toLowerCase();
+    return (
+      name.includes(term) ||
+      email.includes(term) ||
+      owner.includes(term) ||
+      phone.includes(term) ||
+      id.includes(term)
+    );
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
@@ -320,7 +329,7 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
                           >
                             <div className="space-y-1">
                               <div className="flex items-center gap-2">
-                                <h4 className="font-bold text-white text-sm">{w.nombreTaller || 'Taller Sin Nombre'}</h4>
+                                <h4 className="font-bold text-white text-sm">{w.nombreTaller || w.email || `Taller (${w.id.substring(0, 8)})`}</h4>
                                 <span
                                   className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                                     isPro

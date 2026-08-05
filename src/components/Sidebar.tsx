@@ -16,7 +16,8 @@ import {
   CreditCard,
   ShieldAlert,
   Smartphone,
-  Download
+  Download,
+  Sparkles
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { Workshop } from '../types/tallerya';
@@ -148,20 +149,13 @@ export function Sidebar({
             <p className="text-[11px] text-slate-400 leading-snug">
               Registra tu taller gratis para guardar tus clientes y datos en tu propia cuenta.
             </p>
-            <div className="grid grid-cols-2 gap-1.5 pt-1">
+            <div className="pt-1">
               <button
                 onClick={() => onOpenAuth('login')}
-                className="py-1 px-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1"
+                className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-xs"
               >
-                <LogIn className="w-3 h-3" />
-                Ingresar
-              </button>
-              <button
-                onClick={() => onOpenAuth('register')}
-                className="py-1 px-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1"
-              >
-                <UserPlus className="w-3 h-3" />
-                Registrar
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>Acceder / Registrar Taller</span>
               </button>
             </div>
           </div>

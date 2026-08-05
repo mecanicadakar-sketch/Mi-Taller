@@ -1,22 +1,38 @@
 import React, { useState } from 'react';
 import { Budget } from '../types/tallerya';
 import { PrintBudgetModal } from './PrintBudgetModal';
-import { Plus, Printer, FileText, Trash2, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { Plus, Printer, FileText, Trash2, CheckCircle, Clock, XCircle, Search } from 'lucide-react';
 
 interface BudgetViewProps {
   budgets: Budget[];
   onAddBudget: (budget: Budget) => void;
+  searchTerm?: string;
 }
 
-export function BudgetView({ budgets, onAddBudget }: BudgetViewProps) {
+export function BudgetView({ budgets, onAddBudget, searchTerm = '' }: BudgetViewProps) {
   const [selectedForPrint, setSelectedForPrint] = useState<Budget | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [localSearch, setLocalSearch] = useState('');
 
   // New Budget Form
   const [clienteNombre, setClienteNombre] = useState('');
   const [clienteTelefono, setClienteTelefono] = useState('');
   const [vehiculoInfo, setVehiculoInfo] = useState('');
   const [descuento, setDescuento] = useState(0);
+
+  const activeSearch = (searchTerm || localSearch).trim();
+
+  const filteredBudgets = budgets.filter((b) => {
+    const q = activeSearch.toLowerCase();
+    if (!q) return true;
+    return (
+      b.numeroPresupuesto.toLowerCase().includes(q) ||
+      b.clienteNombre.toLowerCase().includes(q) ||
+      (b.clienteTelefono && b.clienteTelefono.toLowerCase().includes(q)) ||
+      (b.vehiculoInfo && b.vehiculoInfo.toLowerCase().includes(q)) ||
+      b.items.some((item) => item.descripcion.toLowerCase().includes(q))
+    );
+  });
 
   const [items, setItems] = useState<
     { descripcion: string; cantidad: number; precioUnitario: number; subtotal: number }[]
@@ -97,9 +113,21 @@ export function BudgetView({ budgets, onAddBudget }: BudgetViewProps) {
         </button>
       </div>
 
+      {/* Search Input */}
+      <div className="relative max-w-md">
+        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        <input
+          type="text"
+          value={searchTerm || localSearch}
+          onChange={(e) => setLocalSearch(e.target.value)}
+          placeholder="Buscar por cliente, N° presupuesto o detalle..."
+          className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+        />
+      </div>
+
       {/* Budgets List */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {budgets.map((b) => (
+        {filteredBudgets.map((b) => (
           <div
             key={b.id}
             className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4 hover:border-amber-400 transition-all"
