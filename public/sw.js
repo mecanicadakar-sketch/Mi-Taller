@@ -1,8 +1,13 @@
-const CACHE_NAME = 'tallerya-pwa-v1';
+const CACHE_NAME = 'tallerya-pwa-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/pwa-192.png',
+  '/pwa-512.png',
+  '/apple-touch-icon.png',
+  '/icon.png',
+  '/icon.jpg'
 ];
 
 self.addEventListener('install', (event) => {
