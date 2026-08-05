@@ -154,8 +154,8 @@ export const InstallAppBanner: React.FC<InstallAppBannerProps> = ({
           <div className="bg-slate-900/95 backdrop-blur-md border border-amber-500/40 rounded-2xl shadow-2xl p-4 text-slate-100 shadow-amber-500/10">
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
-                  <Smartphone className="w-6 h-6 text-slate-950" />
+                <div className="w-11 h-11 bg-slate-950 rounded-xl overflow-hidden border border-amber-500/40 flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
+                  <img src="/pwa-192.png" alt="MiTaller Icon" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
