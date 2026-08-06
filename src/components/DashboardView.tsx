@@ -1,5 +1,5 @@
 import { WorkOrder, InventoryItem, OrderStatus } from '../types/tallerya';
-import { Wrench, Clock, CheckCircle2, AlertTriangle, ArrowRight, DollarSign, Car, Plus, AlertCircle, Search, FileSpreadsheet } from 'lucide-react';
+import { Wrench, Clock, CheckCircle2, AlertTriangle, ArrowRight, DollarSign, Car, Plus, AlertCircle, Search, FileSpreadsheet, MessageSquare } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 
 interface DashboardViewProps {
@@ -9,6 +9,7 @@ interface DashboardViewProps {
   onNewWorkOrder: () => void;
   onNavigateTab: (tab: string) => void;
   onOpenGoogleSheetsModal?: () => void;
+  onOpenWhatsAppReminders?: () => void;
   searchTerm?: string;
   setSearchTerm?: (term: string) => void;
 }
@@ -29,6 +30,7 @@ export function DashboardView({
   onNewWorkOrder,
   onNavigateTab,
   onOpenGoogleSheetsModal,
+  onOpenWhatsAppReminders,
   searchTerm = '',
   setSearchTerm,
 }: DashboardViewProps) {
@@ -86,6 +88,15 @@ export function DashboardView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {onOpenWhatsAppReminders && (
+            <button
+              onClick={onOpenWhatsAppReminders}
+              className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs sm:text-sm font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5"
+            >
+              <MessageSquare className="w-4 h-4 fill-slate-950 text-slate-950" />
+              <span>Recordatorios WhatsApp</span>
+            </button>
+          )}
           {onOpenGoogleSheetsModal && (
             <button
               onClick={onOpenGoogleSheetsModal}

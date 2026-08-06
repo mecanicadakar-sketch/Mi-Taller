@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { WorkOrder, OrderStatus, InventoryItem, Mechanic } from '../types/tallerya';
 import { Wrench, Car, User, Phone, CheckCircle2, Clock, Plus, Trash2, Save, Printer, Users, CheckSquare, Sparkles } from 'lucide-react';
+import { resolveProximoKm } from '../services/whatsappReminderService';
 
 interface WorkOrderDetailModalProps {
   order: WorkOrder;
@@ -8,6 +9,7 @@ interface WorkOrderDetailModalProps {
   mechanics?: Mechanic[];
   onClose: () => void;
   onUpdateOrder: (updated: WorkOrder) => void;
+  onDeleteOrder?: (orderId: string) => void;
   onOpenMechanicsModal?: () => void;
 }
 
@@ -26,6 +28,7 @@ export function WorkOrderDetailModal({
   mechanics = [],
   onClose,
   onUpdateOrder,
+  onDeleteOrder,
   onOpenMechanicsModal,
 }: WorkOrderDetailModalProps) {
   const [estado, setEstado] = useState<OrderStatus>(order.estado);
@@ -221,9 +224,13 @@ export function WorkOrderDetailModal({
                 <CheckSquare className="w-4 h-4 text-emerald-600" />
                 Service de Mantenimiento Preventivo ({order.mantenimiento.intervaloKm?.toLocaleString() || 10000} km)
               </span>
-              {order.mantenimiento.proximoKmService && (
+              {order.mantenimiento && (
                 <span className="bg-emerald-600 text-white font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
-                  Próximo Service: {order.mantenimiento.proximoKmService.toLocaleString()} km
+                  Próximo Service: {resolveProximoKm(
+                    order.vehiculo?.kilometraje || 0,
+                    order.mantenimiento.proximoKmService,
+                    order.mantenimiento.intervaloKm
+                  ).toLocaleString()} km
                 </span>
               )}
             </div>
@@ -392,9 +399,26 @@ export function WorkOrderDetailModal({
 
         {/* Footer Bar */}
         <div className="flex flex-wrap items-center justify-between border-t border-slate-200 pt-4 gap-4">
-          <div>
-            <span className="text-[10px] text-slate-400 font-bold uppercase">Total Estimado</span>
-            <p className="text-xl font-extrabold text-slate-900">${calculateTotal().toLocaleString('es-AR')}</p>
+          <div className="flex items-center gap-4">
+            <div>
+              <span className="text-[10px] text-slate-400 font-bold uppercase">Total Estimado</span>
+              <p className="text-xl font-extrabold text-slate-900">${calculateTotal().toLocaleString('es-AR')}</p>
+            </div>
+            {onDeleteOrder && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm(`¿Estás seguro de eliminar la Orden de Trabajo #${order.id}? esta acción no se puede deshacer.`)) {
+                    onDeleteOrder(order.id);
+                    onClose();
+                  }
+                }}
+                className="px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Eliminar Orden
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-3">

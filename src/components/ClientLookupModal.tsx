@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { WorkOrder, Workshop, OrderStatus } from '../types/tallerya';
 import { searchWorkOrdersByPatente } from '../services/tallerService';
+import { resolveProximoKm } from '../services/whatsappReminderService';
 import {
   Car,
   Search,
@@ -296,9 +297,13 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [] }: Cli
                                   <Sparkles className="w-4 h-4 text-emerald-600" />
                                   Service de Mantenimiento Preventivo ({order.mantenimiento.intervaloKm?.toLocaleString() || 10000} km)
                                 </span>
-                                {order.mantenimiento.proximoKmService && (
+                                {order.mantenimiento && (
                                   <span className="bg-emerald-700 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-lg shadow-xs">
-                                    Próximo Service: {order.mantenimiento.proximoKmService.toLocaleString()} km
+                                    Próximo Service: {resolveProximoKm(
+                                      order.vehiculo?.kilometraje || 0,
+                                      order.mantenimiento.proximoKmService,
+                                      order.mantenimiento.intervaloKm
+                                    ).toLocaleString()} km
                                   </span>
                                 )}
                               </div>

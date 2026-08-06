@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import {
@@ -11,6 +11,9 @@ import {
   saveBudget,
   saveMechanic,
   deleteMechanic,
+  deleteWorkOrder,
+  deleteClient,
+  deleteInventoryItem,
   updateWorkshopSubscription,
   validateAndApplyLicenseCodeInFirestore,
   createWorkshopProfile
@@ -33,6 +36,9 @@ import { SubscriptionModal } from './components/SubscriptionModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { InstallAppBanner } from './components/InstallAppBanner';
 import { GoogleSheetsImportModal } from './components/GoogleSheetsImportModal';
+import { WhatsAppReminderModal } from './components/WhatsAppReminderModal';
+import { deduplicateClients, deduplicateWorkOrders } from './services/googleDriveImportService';
+import { calculateReminders } from './services/whatsappReminderService';
 
 import {
   INITIAL_CLIENTS,
@@ -95,6 +101,11 @@ export default function App() {
   const [showNewWorkOrderModal, setShowNewWorkOrderModal] = useState<false | boolean>(false);
   const [showImportModal, setShowImportModal] = useState<false | boolean>(false);
   const [showGoogleSheetsModal, setShowGoogleSheetsModal] = useState<boolean>(false);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState<boolean>(false);
+
+  const remindersCount = useMemo(() => {
+    return calculateReminders(workOrders, clients, 1000).length;
+  }, [workOrders, clients]);
 
   // Preselected info for launching new work order
   const [preselectedClient, setPreselectedClient] = useState<Client | undefined>();
@@ -111,13 +122,42 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser) {
-      // Reset to demo mock data when signed out / guest
       setWorkshop(null);
-      setClients(INITIAL_CLIENTS);
-      setInventory(INITIAL_INVENTORY);
-      setWorkOrders(INITIAL_WORK_ORDERS);
-      setBudgets(INITIAL_BUDGETS);
-      setMechanics(INITIAL_MECHANICS);
+      const storedClients = localStorage.getItem('mitaller_guest_clients');
+      const storedInventory = localStorage.getItem('mitaller_guest_inventory');
+      const storedWorkOrders = localStorage.getItem('mitaller_guest_workOrders');
+      const storedBudgets = localStorage.getItem('mitaller_guest_budgets');
+      const storedMechanics = localStorage.getItem('mitaller_guest_mechanics');
+
+      if (storedClients) {
+        try { setClients(JSON.parse(storedClients)); } catch (e) { setClients(INITIAL_CLIENTS); }
+      } else {
+        setClients(INITIAL_CLIENTS);
+      }
+
+      if (storedInventory) {
+        try { setInventory(JSON.parse(storedInventory)); } catch (e) { setInventory(INITIAL_INVENTORY); }
+      } else {
+        setInventory(INITIAL_INVENTORY);
+      }
+
+      if (storedWorkOrders) {
+        try { setWorkOrders(JSON.parse(storedWorkOrders)); } catch (e) { setWorkOrders(INITIAL_WORK_ORDERS); }
+      } else {
+        setWorkOrders(INITIAL_WORK_ORDERS);
+      }
+
+      if (storedBudgets) {
+        try { setBudgets(JSON.parse(storedBudgets)); } catch (e) { setBudgets(INITIAL_BUDGETS); }
+      } else {
+        setBudgets(INITIAL_BUDGETS);
+      }
+
+      if (storedMechanics) {
+        try { setMechanics(JSON.parse(storedMechanics)); } catch (e) { setMechanics(INITIAL_MECHANICS); }
+      } else {
+        setMechanics(INITIAL_MECHANICS);
+      }
       return;
     }
 
@@ -125,13 +165,44 @@ export default function App() {
     const unsubscribeFirestore = subscribeToWorkshopCollections(
       currentUser.uid,
       async (data) => {
-        setClients(data.clients);
-        setInventory(data.inventory);
-        setWorkOrders(data.workOrders);
-        setBudgets(data.budgets);
-        if (data.mechanics) {
+        if (data.clients.length > 0) {
+          setClients(data.clients);
+          localStorage.setItem(`mitaller_${currentUser.uid}_clients`, JSON.stringify(data.clients));
+        } else {
+          const cached = localStorage.getItem(`mitaller_${currentUser.uid}_clients`) || localStorage.getItem('mitaller_guest_clients');
+          if (cached) {
+            try { setClients(JSON.parse(cached)); } catch (e) {}
+          }
+        }
+
+        if (data.inventory.length > 0) {
+          setInventory(data.inventory);
+          localStorage.setItem(`mitaller_${currentUser.uid}_inventory`, JSON.stringify(data.inventory));
+        } else {
+          const cached = localStorage.getItem(`mitaller_${currentUser.uid}_inventory`) || localStorage.getItem('mitaller_guest_inventory');
+          if (cached) {
+            try { setInventory(JSON.parse(cached)); } catch (e) {}
+          }
+        }
+
+        if (data.workOrders.length > 0) {
+          setWorkOrders(data.workOrders);
+          localStorage.setItem(`mitaller_${currentUser.uid}_workOrders`, JSON.stringify(data.workOrders));
+        } else {
+          const cached = localStorage.getItem(`mitaller_${currentUser.uid}_workOrders`) || localStorage.getItem('mitaller_guest_workOrders');
+          if (cached) {
+            try { setWorkOrders(JSON.parse(cached)); } catch (e) {}
+          }
+        }
+
+        if (data.budgets.length > 0) {
+          setBudgets(data.budgets);
+        }
+
+        if (data.mechanics && data.mechanics.length > 0) {
           setMechanics(data.mechanics);
         }
+
         if (data.workshop) {
           setWorkshop(data.workshop);
         } else {
@@ -176,9 +247,38 @@ export default function App() {
     setShowAuthModal(true);
   };
 
+  const handleResetDemoData = () => {
+    localStorage.removeItem('mitaller_guest_clients');
+    localStorage.removeItem('mitaller_guest_inventory');
+    localStorage.removeItem('mitaller_guest_workOrders');
+    localStorage.removeItem('mitaller_guest_budgets');
+    localStorage.removeItem('mitaller_guest_mechanics');
+
+    setClients(INITIAL_CLIENTS);
+    setInventory(INITIAL_INVENTORY);
+    setWorkOrders(INITIAL_WORK_ORDERS);
+    setBudgets(INITIAL_BUDGETS);
+    setMechanics(INITIAL_MECHANICS);
+  };
+
   const handleSignOut = async () => {
     await signOut(auth);
     setWorkshop(null);
+    handleResetDemoData();
+  };
+
+  const handleDeleteWorkOrder = async (orderId: string) => {
+    if (currentUser) {
+      await deleteWorkOrder(orderId);
+    }
+    setWorkOrders((prev) => prev.filter((o) => o.id !== orderId));
+  };
+
+  const handleDeleteClient = async (clientId: string) => {
+    if (currentUser) {
+      await deleteClient(clientId);
+    }
+    setClients((prev) => prev.filter((c) => c.id !== clientId));
   };
 
   // Handlers
@@ -410,8 +510,11 @@ export default function App() {
           setActiveTab={setActiveTab}
           workOrdersCount={activeWorkOrdersCount}
           lowStockCount={lowStockCount}
+          remindersCount={remindersCount}
           onOpenImportModal={() => setShowImportModal(true)}
           onOpenGoogleSheetsModal={() => setShowGoogleSheetsModal(true)}
+          onOpenWhatsAppReminders={() => setShowWhatsAppModal(true)}
+          onResetDemoData={handleResetDemoData}
           currentUser={currentUser}
           workshop={workshop}
           onOpenAuth={handleOpenAuth}
@@ -488,6 +591,7 @@ export default function App() {
               }}
               onNavigateTab={setActiveTab}
               onOpenGoogleSheetsModal={() => setShowGoogleSheetsModal(true)}
+              onOpenWhatsAppReminders={() => setShowWhatsAppModal(true)}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
             />
@@ -512,6 +616,8 @@ export default function App() {
             <ClientsView
               clients={clients}
               onAddClient={handleAddClient}
+              onUpdateClient={handleAddClient}
+              onDeleteClient={handleDeleteClient}
               onNewWorkOrderForVehicle={handleNewOrderForVehicle}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
@@ -558,12 +664,17 @@ export default function App() {
               }}
               workOrdersCount={activeWorkOrdersCount}
               lowStockCount={lowStockCount}
+              remindersCount={remindersCount}
               onOpenImportModal={() => {
                 setShowImportModal(true);
                 setMobileMenuOpen(false);
               }}
               onOpenGoogleSheetsModal={() => {
                 setShowGoogleSheetsModal(true);
+                setMobileMenuOpen(false);
+              }}
+              onOpenWhatsAppReminders={() => {
+                setShowWhatsAppModal(true);
                 setMobileMenuOpen(false);
               }}
               currentUser={currentUser}
@@ -718,6 +829,7 @@ export default function App() {
           mechanics={mechanics}
           onClose={() => setSelectedOrder(null)}
           onUpdateOrder={handleUpdateOrderDetails}
+          onDeleteOrder={handleDeleteWorkOrder}
           onOpenMechanicsModal={() => setShowMechanicsModal(true)}
         />
       )}
@@ -745,8 +857,48 @@ export default function App() {
         <GoogleSheetsImportModal
           tallerId={workshop?.id || currentUser?.uid || 'taller_demo'}
           onClose={() => setShowGoogleSheetsModal(false)}
-          onImportSuccess={() => {
-            // Success callback
+          onImportSuccess={(data) => {
+            if (data) {
+              if (data.clients.length > 0) {
+                setClients((prev) => {
+                  const updated = deduplicateClients([...data.clients, ...prev]);
+                  try {
+                    localStorage.setItem('mitaller_guest_clients', JSON.stringify(updated));
+                    if (currentUser) {
+                      localStorage.setItem(`mitaller_${currentUser.uid}_clients`, JSON.stringify(updated));
+                    }
+                  } catch (e) {}
+                  return updated;
+                });
+              }
+              if (data.inventory.length > 0) {
+                setInventory((prev) => {
+                  const invMap = new Map<string, InventoryItem>();
+                  prev.forEach((i) => invMap.set(i.id, i));
+                  data.inventory.forEach((i) => invMap.set(i.id, i));
+                  const updated = Array.from(invMap.values());
+                  try {
+                    localStorage.setItem('mitaller_guest_inventory', JSON.stringify(updated));
+                    if (currentUser) {
+                      localStorage.setItem(`mitaller_${currentUser.uid}_inventory`, JSON.stringify(updated));
+                    }
+                  } catch (e) {}
+                  return updated;
+                });
+              }
+              if (data.workOrders.length > 0) {
+                setWorkOrders((prev) => {
+                  const updated = deduplicateWorkOrders([...data.workOrders, ...prev]);
+                  try {
+                    localStorage.setItem('mitaller_guest_workOrders', JSON.stringify(updated));
+                    if (currentUser) {
+                      localStorage.setItem(`mitaller_${currentUser.uid}_workOrders`, JSON.stringify(updated));
+                    }
+                  } catch (e) {}
+                  return updated;
+                });
+              }
+            }
           }}
         />
       )}
@@ -760,6 +912,14 @@ export default function App() {
       <InstallAppBanner
         forceShow={showForceInstallModal}
         onCloseForceShow={() => setShowForceInstallModal(false)}
+      />
+
+      <WhatsAppReminderModal
+        isOpen={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        workOrders={workOrders}
+        clients={clients}
+        tallerNombre={workshop?.nombreTaller || 'MiTaller Mecánico'}
       />
     </div>
   );

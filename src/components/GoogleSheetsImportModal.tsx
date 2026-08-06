@@ -29,7 +29,7 @@ import { Client, InventoryItem, WorkOrder } from '../types/tallerya';
 interface GoogleSheetsImportModalProps {
   tallerId: string;
   onClose: () => void;
-  onImportSuccess?: () => void;
+  onImportSuccess?: (data: { clients: Client[]; inventory: InventoryItem[]; workOrders: WorkOrder[] }) => void;
 }
 
 export function GoogleSheetsImportModal({
@@ -37,8 +37,8 @@ export function GoogleSheetsImportModal({
   onClose,
   onImportSuccess,
 }: GoogleSheetsImportModalProps) {
-  // Pre-filled with user's Google Sheets link
-  const DEFAULT_LINK = 'https://docs.google.com/spreadsheets/d/1sDufW3RfiwFiycDESZOzXSm9CsFm35VMfcR35PrqhNw/edit?gid=0#gid=0';
+  // Pre-filled with user's unified Google Sheets link
+  const DEFAULT_LINK = 'https://docs.google.com/spreadsheets/d/18Pt10K0g_KAlzQzFjoXzT8n6eMttLgk9G5Zu0dDFYfA/edit?gid=0#gid=0';
 
   const [sheetUrl, setSheetUrl] = useState<string>(DEFAULT_LINK);
   const [gid, setGid] = useState<string>('0');
@@ -156,9 +156,18 @@ export function GoogleSheetsImportModal({
       });
 
       setSaveSummary(res);
-      if (onImportSuccess) {
-        onImportSuccess();
+      if (onImportSuccess && previewResult) {
+        onImportSuccess({
+          clients: previewResult.clients,
+          inventory: previewResult.inventory,
+          workOrders: previewResult.workOrders,
+        });
       }
+
+      // Auto close modal smoothly after 1.5 seconds
+      setTimeout(() => {
+        onClose();
+      }, 1500);
     } catch (err: any) {
       setErrorMessage('Error al guardar en Firebase: ' + (err?.message || String(err)));
     } finally {

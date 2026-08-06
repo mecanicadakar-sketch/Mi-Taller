@@ -248,6 +248,21 @@ export async function deleteMechanic(mechanicId: string) {
   await deleteDoc(docRef);
 }
 
+export async function deleteWorkOrder(orderId: string) {
+  const docRef = doc(db, 'workOrders', orderId);
+  await deleteDoc(docRef);
+}
+
+export async function deleteClient(clientId: string) {
+  const docRef = doc(db, 'clients', clientId);
+  await deleteDoc(docRef);
+}
+
+export async function deleteInventoryItem(itemId: string) {
+  const docRef = doc(db, 'inventory', itemId);
+  await deleteDoc(docRef);
+}
+
 // Seed initial demo data for a newly registered workshop
 export async function seedDemoDataForWorkshop(tallerId: string) {
   const batch = writeBatch(db);
