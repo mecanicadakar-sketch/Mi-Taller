@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { WorkOrder, OrderStatus, InventoryItem, Mechanic } from '../types/tallerya';
-import { Wrench, Car, User, Phone, CheckCircle2, Clock, Plus, Trash2, Save, Printer, Users } from 'lucide-react';
+import { Wrench, Car, User, Phone, CheckCircle2, Clock, Plus, Trash2, Save, Printer, Users, CheckSquare, Sparkles } from 'lucide-react';
 
 interface WorkOrderDetailModalProps {
   order: WorkOrder;
@@ -212,6 +212,76 @@ export function WorkOrderDetailModal({
             </div>
           </div>
         </div>
+
+        {/* Maintenance Checklist Card (If present) */}
+        {order.mantenimiento && (
+          <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-extrabold text-emerald-900 flex items-center gap-1.5">
+                <CheckSquare className="w-4 h-4 text-emerald-600" />
+                Service de Mantenimiento Preventivo ({order.mantenimiento.intervaloKm?.toLocaleString() || 10000} km)
+              </span>
+              {order.mantenimiento.proximoKmService && (
+                <span className="bg-emerald-600 text-white font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
+                  Próximo Service: {order.mantenimiento.proximoKmService.toLocaleString()} km
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {order.mantenimiento.aceiteMotor && (
+                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                  ✓ Aceite Motor ({order.mantenimiento.tipoAceiteMotor || 'Sintético'})
+                </span>
+              )}
+              {order.mantenimiento.filtroAceite && (
+                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                  ✓ Filtro Aceite
+                </span>
+              )}
+              {order.mantenimiento.filtroAire && (
+                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                  ✓ Filtro Aire
+                </span>
+              )}
+              {order.mantenimiento.filtroCombustible && (
+                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                  ✓ Filtro Combustible
+                </span>
+              )}
+              {order.mantenimiento.filtroHabitaculo && (
+                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                  ✓ Filtro Habitáculo/AA
+                </span>
+              )}
+              {order.mantenimiento.filtroCajaATF && (
+                <span className="bg-amber-100 border border-amber-300 text-amber-950 font-bold px-2 py-0.5 rounded-md text-[11px]">
+                  ✓ Filtro Caja ATF
+                </span>
+              )}
+              {order.mantenimiento.aceiteCajaAutomatica && (
+                <span className="bg-amber-100 border border-amber-300 text-amber-950 font-bold px-2 py-0.5 rounded-md text-[11px]">
+                  ⚡ Aceite Caja Auto (ATF)
+                </span>
+              )}
+              {order.mantenimiento.correaDistribucion && (
+                <span className="bg-rose-100 border border-rose-300 text-rose-950 font-bold px-2 py-0.5 rounded-md text-[11px]">
+                  ⚡ Kit Correa Distribución
+                </span>
+              )}
+              {order.mantenimiento.bujias && (
+                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                  ✓ Bujías
+                </span>
+              )}
+              {order.mantenimiento.pastillasFreno && (
+                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                  ✓ Pastillas Freno
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Falla & Diagnostic Technical Notes */}
         <div className="space-y-3">

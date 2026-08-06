@@ -1,5 +1,5 @@
 import { WorkOrder, InventoryItem, OrderStatus } from '../types/tallerya';
-import { Wrench, Clock, CheckCircle2, AlertTriangle, ArrowRight, DollarSign, Car, Plus, AlertCircle, Search } from 'lucide-react';
+import { Wrench, Clock, CheckCircle2, AlertTriangle, ArrowRight, DollarSign, Car, Plus, AlertCircle, Search, FileSpreadsheet } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 
 interface DashboardViewProps {
@@ -8,6 +8,7 @@ interface DashboardViewProps {
   onSelectOrder: (order: WorkOrder) => void;
   onNewWorkOrder: () => void;
   onNavigateTab: (tab: string) => void;
+  onOpenGoogleSheetsModal?: () => void;
   searchTerm?: string;
   setSearchTerm?: (term: string) => void;
 }
@@ -27,6 +28,7 @@ export function DashboardView({
   onSelectOrder,
   onNewWorkOrder,
   onNavigateTab,
+  onOpenGoogleSheetsModal,
   searchTerm = '',
   setSearchTerm,
 }: DashboardViewProps) {
@@ -83,10 +85,19 @@ export function DashboardView({
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {onOpenGoogleSheetsModal && (
+            <button
+              onClick={onOpenGoogleSheetsModal}
+              className="px-3.5 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-1.5"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <span>Importar Google Drive</span>
+            </button>
+          )}
           <button
             onClick={() => onNavigateTab('orders')}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold rounded-xl border border-slate-700 transition-colors"
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold rounded-xl border border-slate-700 transition-colors"
           >
             Ver Kanban
           </button>

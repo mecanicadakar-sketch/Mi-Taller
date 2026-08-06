@@ -32,6 +32,7 @@ import { MechanicsModal } from './components/MechanicsModal';
 import { SubscriptionModal } from './components/SubscriptionModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { InstallAppBanner } from './components/InstallAppBanner';
+import { GoogleSheetsImportModal } from './components/GoogleSheetsImportModal';
 
 import {
   INITIAL_CLIENTS,
@@ -93,6 +94,7 @@ export default function App() {
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
   const [showNewWorkOrderModal, setShowNewWorkOrderModal] = useState<false | boolean>(false);
   const [showImportModal, setShowImportModal] = useState<false | boolean>(false);
+  const [showGoogleSheetsModal, setShowGoogleSheetsModal] = useState<boolean>(false);
 
   // Preselected info for launching new work order
   const [preselectedClient, setPreselectedClient] = useState<Client | undefined>();
@@ -409,6 +411,7 @@ export default function App() {
           workOrdersCount={activeWorkOrdersCount}
           lowStockCount={lowStockCount}
           onOpenImportModal={() => setShowImportModal(true)}
+          onOpenGoogleSheetsModal={() => setShowGoogleSheetsModal(true)}
           currentUser={currentUser}
           workshop={workshop}
           onOpenAuth={handleOpenAuth}
@@ -462,6 +465,7 @@ export default function App() {
           onOpenClientLookup={() => setShowClientLookupModal(true)}
           onInstallApp={() => setShowForceInstallModal(true)}
           onOpenSubscriptionModal={() => setShowSubscriptionModal(true)}
+          onOpenGoogleSheetsModal={() => setShowGoogleSheetsModal(true)}
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
           workOrders={workOrders}
           clients={clients}
@@ -483,6 +487,7 @@ export default function App() {
                 setShowNewWorkOrderModal(true);
               }}
               onNavigateTab={setActiveTab}
+              onOpenGoogleSheetsModal={() => setShowGoogleSheetsModal(true)}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
             />
@@ -555,6 +560,10 @@ export default function App() {
               lowStockCount={lowStockCount}
               onOpenImportModal={() => {
                 setShowImportModal(true);
+                setMobileMenuOpen(false);
+              }}
+              onOpenGoogleSheetsModal={() => {
+                setShowGoogleSheetsModal(true);
                 setMobileMenuOpen(false);
               }}
               currentUser={currentUser}
@@ -729,6 +738,16 @@ export default function App() {
         <ImportChatModal
           onClose={() => setShowImportModal(false)}
           onImportContent={handleImportContent}
+        />
+      )}
+
+      {showGoogleSheetsModal && (
+        <GoogleSheetsImportModal
+          tallerId={workshop?.id || currentUser?.uid || 'taller_demo'}
+          onClose={() => setShowGoogleSheetsModal(false)}
+          onImportSuccess={() => {
+            // Success callback
+          }}
         />
       )}
 

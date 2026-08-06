@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { WorkOrder, Client, Vehicle, Mechanic } from '../types/tallerya';
-import { Car, User, Wrench, ShieldAlert, Users, Plus } from 'lucide-react';
+import { WorkOrder, Client, Vehicle, Mechanic, MantenimientoChecklist } from '../types/tallerya';
+import { Car, User, Wrench, ShieldAlert, Users, Plus, CheckSquare, Sparkles, Clock, Check } from 'lucide-react';
 
 interface NewWorkOrderModalProps {
   clients: Client[];
@@ -44,6 +44,21 @@ export function NewWorkOrderModal({
   const [mecanicoAsignado, setMecanicoAsignado] = useState('Mecanico Juan Pérez');
   const [totalEstimado, setTotalEstimado] = useState(50000);
 
+  // Maintenance Checklist
+  const [enableMaintenance, setEnableMaintenance] = useState(false);
+  const [intervaloKm, setIntervaloKm] = useState<number>(10000);
+  const [filtroAceite, setFiltroAceite] = useState(true);
+  const [filtroAire, setFiltroAire] = useState(true);
+  const [filtroCombustible, setFiltroCombustible] = useState(false);
+  const [filtroHabitaculo, setFiltroHabitaculo] = useState(false);
+  const [filtroCajaATF, setFiltroCajaATF] = useState(false);
+  const [aceiteMotor, setAceiteMotor] = useState(true);
+  const [tipoAceiteMotor, setTipoAceiteMotor] = useState('5W30 Sintético');
+  const [aceiteCajaAutomatica, setAceiteCajaAutomatica] = useState(false);
+  const [correaDistribucion, setCorreaDistribucion] = useState(false);
+  const [bujias, setBujias] = useState(false);
+  const [pastillasFreno, setPastillasFreno] = useState(false);
+
   const handleSelectClient = (clientId: string) => {
     setSelectedClientId(clientId);
     const found = clients.find((c) => c.id === clientId);
@@ -58,6 +73,72 @@ export function NewWorkOrderModal({
         setAnio(v.anio);
         setKilometraje(v.kilometraje);
       }
+    }
+  };
+
+  const applyIntervalDefaults = (km: number) => {
+    setIntervaloKm(km);
+    setEnableMaintenance(true);
+
+    if (km === 5000 || km === 7000 || km === 10000) {
+      setFiltroAceite(true);
+      setFiltroAire(true);
+      setAceiteMotor(true);
+      setFiltroCombustible(km >= 10000);
+      setFiltroHabitaculo(km >= 10000);
+      setFiltroCajaATF(false);
+      setAceiteCajaAutomatica(false);
+    } else if (km === 20000) {
+      setFiltroAceite(true);
+      setFiltroAire(true);
+      setFiltroCombustible(true);
+      setFiltroHabitaculo(true);
+      setAceiteMotor(true);
+      setBujias(true);
+      setPastillasFreno(true);
+      setFiltroCajaATF(false);
+      setAceiteCajaAutomatica(false);
+    } else if (km === 50000) {
+      setFiltroAceite(true);
+      setFiltroAire(true);
+      setFiltroCombustible(true);
+      setFiltroHabitaculo(true);
+      setAceiteMotor(true);
+      setAceiteCajaAutomatica(true); // Caja Automática ATF
+      setFiltroCajaATF(true); // Filtro Caja ATF
+    } else if (km === 100000) {
+      setFiltroAceite(true);
+      setFiltroAire(true);
+      setFiltroCombustible(true);
+      setFiltroHabitaculo(true);
+      setAceiteMotor(true);
+      setAceiteCajaAutomatica(true);
+      setFiltroCajaATF(true);
+      setCorreaDistribucion(true); // Correa de Distribución
+      setBujias(true);
+    }
+  };
+
+  const autoFillMaintenanceSummary = () => {
+    const items: string[] = [];
+    if (aceiteMotor) items.push(`Aceite Motor (${tipoAceiteMotor})`);
+    if (filtroAceite) items.push('Filtro de Aceite');
+    if (filtroAire) items.push('Filtro de Aire');
+    if (filtroCombustible) items.push('Filtro de Combustible');
+    if (filtroHabitaculo) items.push('Filtro de Habitáculo/AA');
+    if (filtroCajaATF) items.push('Filtro de Caja ATF');
+    if (aceiteCajaAutomatica) items.push('Aceite Caja Automática (ATF)');
+    if (correaDistribucion) items.push('Kit Correa de Distribución');
+    if (bujias) items.push('Juego de Bujías');
+    if (pastillasFreno) items.push('Pastillas de Freno');
+
+    const nextKm = Number(kilometraje || 0) + Number(intervaloKm || 10000);
+    const summary = `Mantenimiento Preventivo ${intervaloKm.toLocaleString()} km. Incluye: ${items.join(', ')}. Próximo service a los ${nextKm.toLocaleString()} km.`;
+
+    if (fallaReportada) {
+      setFallaReportada((prev) => `${prev}\n[${summary}]`);
+    } else {
+      setFallaReportada(summary);
     }
   };
 
@@ -76,6 +157,24 @@ export function NewWorkOrderModal({
       observacionesVisuales: observacionesVisuales.trim(),
     };
 
+    const mantenimientoObj: MantenimientoChecklist | undefined = enableMaintenance
+      ? {
+          intervaloKm,
+          filtroAceite,
+          filtroAire,
+          filtroCombustible,
+          filtroHabitaculo,
+          filtroCajaATF,
+          aceiteMotor,
+          tipoAceiteMotor,
+          aceiteCajaAutomatica,
+          correaDistribucion,
+          bujias,
+          pastillasFreno,
+          proximoKmService: Number(kilometraje || 0) + Number(intervaloKm || 10000),
+        }
+      : undefined;
+
     const newOrder: WorkOrder = {
       id: 'wo_' + Date.now(),
       numeroOrden: `OT-${Math.floor(1040 + Math.random() * 500)}`,
@@ -89,6 +188,7 @@ export function NewWorkOrderModal({
       mecanicoAsignado,
       servicios: [],
       totalEstimado: Number(totalEstimado) || 0,
+      mantenimiento: mantenimientoObj,
     };
 
     onCreateOrder(newOrder);
@@ -250,11 +350,212 @@ export function NewWorkOrderModal({
             </div>
           </div>
 
+          {/* Maintenance & Service Section */}
+          <div className="space-y-3 bg-emerald-50/60 p-4 rounded-xl border border-emerald-200">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                <CheckSquare className="w-4 h-4 text-emerald-600" />
+                3. Service / Mantenimiento Preventivo por Kilometraje
+              </h4>
+
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-emerald-900 bg-white px-2.5 py-1 rounded-lg border border-emerald-300">
+                <input
+                  type="checkbox"
+                  checked={enableMaintenance}
+                  onChange={(e) => setEnableMaintenance(e.target.checked)}
+                  className="rounded text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>Activar Service</span>
+              </label>
+            </div>
+
+            <p className="text-[11px] text-slate-600">
+              Selecciona el intervalo de mantenimiento para cargar automáticamente filtros, lubricantes, caja automática o correa de distribución.
+            </p>
+
+            {/* Quick Interval Selector Buttons */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[11px] font-bold text-slate-600 mr-1">Intervalos:</span>
+              {[
+                { km: 5000, label: '5.000 km' },
+                { km: 7000, label: '7.000 km' },
+                { km: 10000, label: '10.000 km (Estándar)' },
+                { km: 20000, label: '20.000 km' },
+                { km: 50000, label: '50.000 km (Caja ATF)' },
+                { km: 100000, label: '100.000 km (Distribución)' },
+              ].map((item) => (
+                <button
+                  key={item.km}
+                  type="button"
+                  onClick={() => applyIntervalDefaults(item.km)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border ${
+                    enableMaintenance && intervaloKm === item.km
+                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-emerald-100'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Checklist Items */}
+            {enableMaintenance && (
+              <div className="space-y-3 pt-2 border-t border-emerald-200">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs text-slate-800">
+                  <label className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={filtroAceite}
+                      onChange={(e) => setFiltroAceite(e.target.checked)}
+                      className="rounded text-emerald-600"
+                    />
+                    <span>Filtro de Aceite</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={filtroAire}
+                      onChange={(e) => setFiltroAire(e.target.checked)}
+                      className="rounded text-emerald-600"
+                    />
+                    <span>Filtro de Aire</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={filtroCombustible}
+                      onChange={(e) => setFiltroCombustible(e.target.checked)}
+                      className="rounded text-emerald-600"
+                    />
+                    <span>Filtro Combustible</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={filtroHabitaculo}
+                      onChange={(e) => setFiltroHabitaculo(e.target.checked)}
+                      className="rounded text-emerald-600"
+                    />
+                    <span>Filtro Habitáculo (A/A)</span>
+                  </label>
+
+                  <label className={`flex items-center gap-2 p-2 rounded-lg border font-semibold ${
+                    filtroCajaATF
+                      ? 'bg-amber-50 border-amber-300 text-amber-950'
+                      : 'bg-white border-slate-200 text-slate-800'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={filtroCajaATF}
+                      onChange={(e) => setFiltroCajaATF(e.target.checked)}
+                      className="rounded text-amber-600"
+                    />
+                    <span>Filtro Caja ATF</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={aceiteMotor}
+                      onChange={(e) => setAceiteMotor(e.target.checked)}
+                      className="rounded text-emerald-600"
+                    />
+                    <span>Aceite de Motor</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={bujias}
+                      onChange={(e) => setBujias(e.target.checked)}
+                      className="rounded text-emerald-600"
+                    />
+                    <span>Bujías de Encendido</span>
+                  </label>
+
+                  {/* Special heavy interval items */}
+                  <label className={`flex items-center gap-2 p-2 rounded-lg border font-bold ${
+                    aceiteCajaAutomatica
+                      ? 'bg-amber-100 border-amber-300 text-amber-900'
+                      : 'bg-white border-slate-200 text-slate-800'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={aceiteCajaAutomatica}
+                      onChange={(e) => setAceiteCajaAutomatica(e.target.checked)}
+                      className="rounded text-amber-600"
+                    />
+                    <span>Aceite Caja Auto (ATF)</span>
+                  </label>
+
+                  <label className={`flex items-center gap-2 p-2 rounded-lg border font-bold ${
+                    correaDistribucion
+                      ? 'bg-rose-100 border-rose-300 text-rose-900'
+                      : 'bg-white border-slate-200 text-slate-800'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={correaDistribucion}
+                      onChange={(e) => setCorreaDistribucion(e.target.checked)}
+                      className="rounded text-rose-600"
+                    />
+                    <span>Correa de Distribución</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={pastillasFreno}
+                      onChange={(e) => setPastillasFreno(e.target.checked)}
+                      className="rounded text-emerald-600"
+                    />
+                    <span>Pastillas de Freno</span>
+                  </label>
+                </div>
+
+                {/* Oil Type & Next Service Calculation */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700">Tipo / Viscosidad Aceite Motor:</label>
+                    <input
+                      type="text"
+                      value={tipoAceiteMotor}
+                      onChange={(e) => setTipoAceiteMotor(e.target.value)}
+                      placeholder="Ej. 5W30 Sintético, 10W40 Semisintético"
+                      className="w-full mt-1 p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                    />
+                  </div>
+
+                  <div className="bg-emerald-100/70 p-2.5 rounded-xl border border-emerald-300 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Próximo Service Sugerido</p>
+                      <p className="text-sm font-extrabold text-emerald-950">
+                        {(Number(kilometraje || 0) + Number(intervaloKm || 10000)).toLocaleString()} km
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={autoFillMaintenanceSummary}
+                      className="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] rounded-lg shadow-xs flex items-center gap-1 transition-all"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Copiar a Falla</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Fault & Estimate */}
           <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <h4 className="text-xs font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1">
               <Wrench className="w-4 h-4" />
-              3. Falla y Asignación
+              4. Falla / Trabajos Solicitados y Asignación
             </h4>
 
             <div>

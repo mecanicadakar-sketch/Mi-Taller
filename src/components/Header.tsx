@@ -13,7 +13,8 @@ import {
   ClipboardList,
   Users,
   Package,
-  FileText
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { Workshop, WorkOrder, Client, InventoryItem, Budget } from '../types/tallerya';
@@ -31,6 +32,7 @@ interface HeaderProps {
   onOpenClientLookup: () => void;
   onInstallApp?: () => void;
   onOpenSubscriptionModal: () => void;
+  onOpenGoogleSheetsModal?: () => void;
   onOpenMobileMenu?: () => void;
   workOrders?: WorkOrder[];
   clients?: Client[];
@@ -52,6 +54,7 @@ export function Header({
   onOpenClientLookup,
   onInstallApp,
   onOpenSubscriptionModal,
+  onOpenGoogleSheetsModal,
   onOpenMobileMenu,
   workOrders = [],
   clients = [],
@@ -364,6 +367,19 @@ export function Header({
 
       {/* Header Action Controls */}
       <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Google Drive Import Button */}
+        {onOpenGoogleSheetsModal && (
+          <button
+            onClick={onOpenGoogleSheetsModal}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 shrink-0"
+            title="Importar base de datos desde Google Drive / Google Sheets"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-200 shrink-0" />
+            <span className="hidden sm:inline">Importar Google Drive</span>
+            <span className="sm:hidden font-bold">Drive</span>
+          </button>
+        )}
+
         {/* Subscription Button (Visible on Mobile & Desktop) */}
         <button
           onClick={onOpenSubscriptionModal}

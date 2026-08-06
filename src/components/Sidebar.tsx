@@ -17,7 +17,8 @@ import {
   ShieldAlert,
   Smartphone,
   Download,
-  Sparkles
+  Sparkles,
+  FileSpreadsheet
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { Workshop } from '../types/tallerya';
@@ -28,6 +29,7 @@ interface SidebarProps {
   workOrdersCount: number;
   lowStockCount: number;
   onOpenImportModal: () => void;
+  onOpenGoogleSheetsModal?: () => void;
   currentUser: FirebaseUser | null;
   workshop: Workshop | null;
   onOpenAuth: (mode?: 'login' | 'register') => void;
@@ -45,6 +47,7 @@ export function Sidebar({
   workOrdersCount,
   lowStockCount,
   onOpenImportModal,
+  onOpenGoogleSheetsModal,
   currentUser,
   workshop,
   onOpenAuth,
@@ -205,6 +208,21 @@ export function Sidebar({
           <UserCheck className="w-5 h-5 text-amber-400" />
           <span>Mecánicos / Personal</span>
         </button>
+
+        {onOpenGoogleSheetsModal && (
+          <button
+            onClick={onOpenGoogleSheetsModal}
+            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-sm bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all shadow-xs"
+          >
+            <div className="flex items-center gap-3">
+              <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+              <span>Importar Google Drive</span>
+            </div>
+            <span className="px-2 py-0.5 text-[10px] rounded-full font-extrabold bg-emerald-500 text-slate-950 uppercase tracking-wider">
+              SHEETS
+            </span>
+          </button>
+        )}
 
         <button
           onClick={onOpenSubscriptionModal}

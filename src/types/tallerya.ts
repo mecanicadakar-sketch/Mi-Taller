@@ -65,6 +65,23 @@ export interface ServiceItem {
   }[];
 }
 
+export interface MantenimientoChecklist {
+  intervaloKm?: number; // 5000, 7000, 10000, 20000, 50000, 100000
+  filtroAceite?: boolean;
+  filtroAire?: boolean;
+  filtroCombustible?: boolean;
+  filtroHabitaculo?: boolean;
+  filtroCajaATF?: boolean; // Filtro de caja de cambios automática ATF
+  aceiteMotor?: boolean;
+  tipoAceiteMotor?: string; // ej. 10W40, 5W30 Sintético
+  aceiteCajaAutomatica?: boolean; // ATF / Transmisión
+  correaDistribucion?: boolean; // Kit Correa Distribución
+  bujias?: boolean;
+  pastillasFreno?: boolean;
+  proximoKmService?: number; // Ej: 85.000 km
+  notasService?: string;
+}
+
 export interface WorkOrder {
   id: string;
   tallerId?: string;
@@ -81,6 +98,7 @@ export interface WorkOrder {
   servicios: ServiceItem[];
   mecanicoAsignado: string;
   totalEstimado: number;
+  mantenimiento?: MantenimientoChecklist;
   notasInternas?: string;
 }
 
