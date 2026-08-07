@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { InventoryItem } from '../types/tallerya';
-import { Search, Plus, Package, AlertTriangle, ArrowUpDown, Edit3, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, Package, AlertTriangle, ArrowUpDown, Edit3, Trash2, CheckCircle2 } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 
 interface InventoryViewProps {
   inventory: InventoryItem[];
   onAddItem: (item: InventoryItem) => void;
   onUpdateStock: (itemId: string, newStock: number) => void;
+  onDeleteItem?: (itemId: string) => void;
   searchTerm?: string;
   setSearchTerm?: (term: string) => void;
 }
@@ -15,12 +16,14 @@ export function InventoryView({
   inventory,
   onAddItem,
   onUpdateStock,
+  onDeleteItem,
   searchTerm = '',
   setSearchTerm,
 }: InventoryViewProps) {
   const [localSearch, setLocalSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todas');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
 
   // Form states
   const [codigo, setCodigo] = useState('');
@@ -48,12 +51,38 @@ export function InventoryView({
     return matchesCat && matchesQ;
   });
 
+  const openNewItemModal = () => {
+    setEditingItem(null);
+    setCodigo('');
+    setNombre('');
+    setCategoria('Lubricantes');
+    setStockActual(10);
+    setStockMinimo(3);
+    setPrecioCosto(10000);
+    setPrecioVenta(15000);
+    setUbicacion('Estantería A-1');
+    setShowAddModal(true);
+  };
+
+  const openEditItemModal = (item: InventoryItem) => {
+    setEditingItem(item);
+    setCodigo(item.codigo);
+    setNombre(item.nombre);
+    setCategoria(item.categoria);
+    setStockActual(item.stockActual);
+    setStockMinimo(item.stockMinimo);
+    setPrecioCosto(item.precioCosto);
+    setPrecioVenta(item.precioVenta);
+    setUbicacion(item.ubicacion);
+    setShowAddModal(true);
+  };
+
   const handleSaveItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim() || !codigo.trim()) return;
 
-    const newItem: InventoryItem = {
-      id: 'inv_' + Date.now(),
+    const itemToSave: InventoryItem = {
+      id: editingItem ? editingItem.id : 'inv_' + Date.now(),
       codigo: codigo.toUpperCase().trim(),
       nombre: nombre.trim(),
       categoria,
@@ -64,8 +93,9 @@ export function InventoryView({
       ubicacion: ubicacion.trim() || 'Depósito',
     };
 
-    onAddItem(newItem);
+    onAddItem(itemToSave);
     setShowAddModal(false);
+    setEditingItem(null);
 
     // Reset
     setCodigo('');
@@ -82,7 +112,7 @@ export function InventoryView({
         </div>
 
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={openNewItemModal}
           className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-all flex items-center gap-1.5"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -137,6 +167,7 @@ export function InventoryView({
                 <th className="p-3.5 text-right">Precio Costo</th>
                 <th className="p-3.5 text-right">Precio Venta</th>
                 <th className="p-3.5 text-center">Ajustar Stock</th>
+                <th className="p-3.5 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -205,6 +236,31 @@ export function InventoryView({
                         </button>
                       </div>
                     </td>
+
+                    <td className="p-3.5 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => openEditItemModal(item)}
+                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                          title="Editar repuesto"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        {onDeleteItem && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`¿Estás seguro de eliminar "${item.nombre}" del inventario?`)) {
+                                onDeleteItem(item.id);
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Eliminar repuesto"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -218,9 +274,14 @@ export function InventoryView({
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-900 text-lg">Agregar Repuesto al Inventario</h3>
+              <h3 className="font-bold text-slate-900 text-lg">
+                {editingItem ? 'Editar Repuesto de Inventario' : 'Agregar Repuesto al Inventario'}
+              </h3>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  setShowAddModal(false);
+                  setEditingItem(null);
+                }}
                 className="text-slate-400 hover:text-slate-600 text-xl font-bold"
               >
                 &times;
@@ -326,7 +387,10 @@ export function InventoryView({
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setEditingItem(null);
+                  }}
                   className="px-4 py-2 text-xs text-slate-600 hover:text-slate-900 font-medium"
                 >
                   Cancelar
@@ -335,7 +399,7 @@ export function InventoryView({
                   type="submit"
                   className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-xs"
                 >
-                  Guardar en Inventario
+                  {editingItem ? 'Guardar Cambios' : 'Guardar en Inventario'}
                 </button>
               </div>
             </form>

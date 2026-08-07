@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { WorkOrder, Client, Vehicle, Mechanic, MantenimientoChecklist } from '../types/tallerya';
-import { Car, User, Wrench, ShieldAlert, Users, Plus, CheckSquare, Sparkles, Clock, Check } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { WorkOrder, Client, Vehicle, Mechanic, MantenimientoChecklist, InventoryItem, ServiceItem } from '../types/tallerya';
+import { Car, User, Wrench, ShieldAlert, Users, Plus, CheckSquare, Sparkles, Clock, Check, Package, Trash2, AlertCircle } from 'lucide-react';
 
 interface NewWorkOrderModalProps {
   clients: Client[];
   mechanics?: Mechanic[];
+  inventory?: InventoryItem[];
   preselectedClient?: Client;
   preselectedVehicle?: Vehicle;
   onClose: () => void;
@@ -15,6 +16,7 @@ interface NewWorkOrderModalProps {
 export function NewWorkOrderModal({
   clients,
   mechanics = [],
+  inventory = [],
   preselectedClient,
   preselectedVehicle,
   onClose,
@@ -42,7 +44,21 @@ export function NewWorkOrderModal({
   // Fault & Mechanic
   const [fallaReportada, setFallaReportada] = useState('');
   const [mecanicoAsignado, setMecanicoAsignado] = useState('Mecanico Juan Pérez');
-  const [totalEstimado, setTotalEstimado] = useState(50000);
+  const [totalEstimado, setTotalEstimado] = useState<number>(0);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Services & Repuestos State
+  const [servicios, setServicios] = useState<ServiceItem[]>([]);
+  const [newServiceDesc, setNewServiceDesc] = useState('');
+  const [newServiceCost, setNewServiceCost] = useState<number | ''>('');
+
+  // Repuestos State
+  const [repuestoNombre, setRepuestoNombre] = useState('');
+  const [repuestoPrecio, setRepuestoPrecio] = useState<number | ''>('');
+  const [repuestoCantidad, setRepuestoCantidad] = useState<number>(1);
+  const [selectedInventoryPartId, setSelectedInventoryPartId] = useState('');
+  const [targetServiceId, setTargetServiceId] = useState('AUTO');
 
   // Maintenance Checklist
   const [enableMaintenance, setEnableMaintenance] = useState(false);
@@ -58,6 +74,106 @@ export function NewWorkOrderModal({
   const [correaDistribucion, setCorreaDistribucion] = useState(false);
   const [bujias, setBujias] = useState(false);
   const [pastillasFreno, setPastillasFreno] = useState(false);
+
+  // Auto calculate total sum of services + parts
+  const totalManoObra = servicios.reduce((acc, s) => acc + (s.costoManoObra || 0), 0);
+  const totalRepuestos = servicios.reduce((acc, s) => {
+    return acc + (s.repuestosUtilizados || []).reduce((pSum, p) => pSum + (p.cantidad || 0) * (p.precioUnitario || 0), 0);
+  }, 0);
+  const totalGeneralCalculado = totalManoObra + totalRepuestos;
+
+  const handleUpdateServiceDesc = (id: string, desc: string) => {
+    setServicios((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, descripcion: desc } : s))
+    );
+  };
+
+  const handleUpdateServiceCost = (id: string, cost: number) => {
+    setServicios((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, costoManoObra: cost } : s))
+    );
+  };
+
+  const handleAddService = () => {
+    if (!newServiceDesc.trim()) return;
+    const cost = typeof newServiceCost === 'number' ? newServiceCost : 0;
+    const newServ: ServiceItem = {
+      id: 's_' + Date.now(),
+      descripcion: newServiceDesc.trim(),
+      costoManoObra: cost,
+      repuestosUtilizados: [],
+    };
+    setServicios((prev) => [...prev, newServ]);
+    setNewServiceDesc('');
+    setNewServiceCost('');
+  };
+
+  const handleRemoveService = (id: string) => {
+    setServicios((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleSelectInventoryRepuesto = (partId: string) => {
+    setSelectedInventoryPartId(partId);
+    if (!partId) return;
+    const item = inventory.find((i) => i.id === partId);
+    if (item) {
+      setRepuestoNombre(item.nombre);
+      setRepuestoPrecio(item.precioVenta);
+    }
+  };
+
+  const handleAddRepuestoDirect = () => {
+    if (!repuestoNombre.trim()) return;
+    const price = typeof repuestoPrecio === 'number' ? repuestoPrecio : 0;
+    const qty = Number(repuestoCantidad) || 1;
+
+    const newRepuesto = {
+      inventoryItemId: selectedInventoryPartId || undefined,
+      repuestoId: selectedInventoryPartId || 'r_' + Date.now(),
+      nombreRepuesto: repuestoNombre.trim(),
+      cantidad: qty,
+      precioUnitario: price,
+    };
+
+    setServicios((prev) => {
+      let updatedServices = [...prev];
+      if (updatedServices.length === 0 || targetServiceId === 'NEW') {
+        const newServ: ServiceItem = {
+          id: 's_' + Date.now(),
+          descripcion: 'Repuestos e Insumos',
+          costoManoObra: 0,
+          repuestosUtilizados: [newRepuesto],
+        };
+        updatedServices.push(newServ);
+      } else {
+        let targetIdx = updatedServices.length - 1;
+        if (targetServiceId !== 'AUTO') {
+          const foundIdx = updatedServices.findIndex((s) => s.id === targetServiceId);
+          if (foundIdx !== -1) targetIdx = foundIdx;
+        }
+        updatedServices[targetIdx] = {
+          ...updatedServices[targetIdx],
+          repuestosUtilizados: [...(updatedServices[targetIdx].repuestosUtilizados || []), newRepuesto],
+        };
+      }
+      return updatedServices;
+    });
+
+    setRepuestoNombre('');
+    setRepuestoPrecio('');
+    setRepuestoCantidad(1);
+    setSelectedInventoryPartId('');
+  };
+
+  const handleRemovePartFromService = (serviceId: string, partIndex: number) => {
+    setServicios((prev) =>
+      prev.map((s) => {
+        if (s.id !== serviceId) return s;
+        const updatedParts = (s.repuestosUtilizados || []).filter((_, idx) => idx !== partIndex);
+        return { ...s, repuestosUtilizados: updatedParts };
+      })
+    );
+  };
 
   const handleSelectClient = (clientId: string) => {
     setSelectedClientId(clientId);
@@ -144,7 +260,18 @@ export function NewWorkOrderModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clienteNombre.trim() || !patente.trim() || !fallaReportada.trim()) return;
+
+    if (!clienteNombre.trim()) {
+      setValidationError("Falta completar el Nombre del Cliente (Sección 1).");
+      formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (!patente.trim()) {
+      setValidationError("Falta completar la Patente del Vehículo (Sección 2).");
+      formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setValidationError(null);
 
     const vehicle: Vehicle = {
       id: 'v_' + Date.now(),
@@ -183,11 +310,11 @@ export function NewWorkOrderModal({
       clienteNombre: clienteNombre.trim(),
       clienteTelefono: clienteTelefono.trim(),
       vehiculo: vehicle,
-      fallaReportada: fallaReportada.trim(),
+      fallaReportada: fallaReportada.trim() || 'Ingreso general de taller',
       estado: 'ingresado',
       mecanicoAsignado,
-      servicios: [],
-      totalEstimado: Number(totalEstimado) || 0,
+      servicios,
+      totalEstimado: servicios.length > 0 ? totalGeneralCalculado : (Number(totalEstimado) || 0),
       mantenimiento: mantenimientoObj,
     };
 
@@ -196,22 +323,42 @@ export function NewWorkOrderModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-2xl w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-slate-200 my-8">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-white rounded-2xl max-w-2xl w-full flex flex-col max-h-[92vh] shadow-2xl border border-slate-200 overflow-hidden">
+        {/* Fixed Header */}
+        <div className="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5 shrink-0 bg-white">
           <div>
             <h3 className="font-bold text-slate-900 text-lg">Ingreso de Vehículo - Nueva Órden de Trabajo</h3>
             <p className="text-xs text-slate-500">Formulario de recepción y check-in inicial</p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+            className="text-slate-400 hover:text-slate-600 text-2xl font-bold leading-none p-1"
           >
             &times;
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Form wrapping scrollable body and fixed footer */}
+        <form ref={formRef} onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+            {validationError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{validationError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setValidationError(null)}
+                  className="text-rose-500 hover:text-rose-700 font-bold text-sm px-1"
+                >
+                  &times;
+                </button>
+              </div>
+            )}
+
           {/* Client Selection */}
           <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <h4 className="text-xs font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1">
@@ -551,11 +698,11 @@ export function NewWorkOrderModal({
             )}
           </div>
 
-          {/* Fault & Estimate */}
+          {/* Fault & Mechanic */}
           <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <h4 className="text-xs font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1">
               <Wrench className="w-4 h-4" />
-              4. Falla / Trabajos Solicitados y Asignación
+              4. Falla Reportada y Mecánico
             </h4>
 
             <div>
@@ -624,18 +771,233 @@ export function NewWorkOrderModal({
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-700 mb-1 block">Monto Estimado Inicial ($)</label>
+                <label className="text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Monto Estimado Inicial ($)</span>
+                  {servicios.length > 0 && (
+                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+                      Autocalculado por trabajos
+                    </span>
+                  )}
+                </label>
                 <input
                   type="number"
-                  value={totalEstimado}
+                  value={servicios.length > 0 ? totalGeneralCalculado : totalEstimado}
                   onChange={(e) => setTotalEstimado(Number(e.target.value))}
                   className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900"
+                  readOnly={servicios.length > 0}
                 />
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+          {/* 5. Trabajos a Realizar (Servicios & Mano de Obra) */}
+          <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1.5">
+              <Wrench className="w-4 h-4" />
+              5. Trabajos a Realizar / Servicios
+            </h4>
+
+            {servicios.length > 0 && (
+              <div className="space-y-2">
+                {servicios.map((s, idx) => (
+                  <div key={s.id} className="p-3 bg-white border border-slate-200 rounded-xl space-y-1.5 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={s.descripcion}
+                        onChange={(e) => handleUpdateServiceDesc(s.id, e.target.value)}
+                        placeholder="Descripción de la tarea"
+                        className="flex-1 p-1.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900 text-xs"
+                      />
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-slate-500 text-[11px] font-medium">Mano obra $:</span>
+                        <input
+                          type="number"
+                          value={s.costoManoObra}
+                          onChange={(e) => handleUpdateServiceCost(s.id, Number(e.target.value))}
+                          className="w-24 p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 text-xs font-bold"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveService(s.id)}
+                        className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
+                        title="Eliminar este trabajo"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {(s.repuestosUtilizados || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-100">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Repuestos:</span>
+                        {(s.repuestosUtilizados || []).map((r, rIdx) => (
+                          <span key={rIdx} className="bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                            {r.nombreRepuesto} ({r.cantidad}x ${r.precioUnitario.toLocaleString('es-AR')})
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePartFromService(s.id, rIdx)}
+                              className="hover:text-rose-700 font-bold ml-1"
+                              title="Quitar repuesto"
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1">
+              <div className="sm:col-span-8">
+                <input
+                  type="text"
+                  placeholder="Ej. Cambio de pastillas de freno, Cambio de aceite..."
+                  value={newServiceDesc}
+                  onChange={(e) => setNewServiceDesc(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900"
+                />
+              </div>
+              <div className="sm:col-span-4 flex items-center gap-1.5">
+                <input
+                  type="number"
+                  placeholder="Mano obra ($)"
+                  value={newServiceCost}
+                  onChange={(e) => setNewServiceCost(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddService}
+                  disabled={!newServiceDesc.trim()}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-amber-400 font-bold text-xs rounded-lg transition-colors flex items-center gap-1 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>Agregar</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 6. Repuestos / Materiales a Utilizar */}
+          <div className="space-y-3 bg-amber-50/40 border border-amber-200/80 rounded-xl p-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+              <Package className="w-4 h-4 text-amber-500" />
+              6. Cargar Repuestos / Insumos
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
+              {/* Inventory dropdown */}
+              <div className="sm:col-span-5">
+                <select
+                  value={selectedInventoryPartId}
+                  onChange={(e) => handleSelectInventoryRepuesto(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900"
+                >
+                  <option value="">-- Buscar en Inventario o Escribir Manual --</option>
+                  {inventory.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nombre} (Stock: {item.stockActual}) - ${item.precioVenta.toLocaleString('es-AR')}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Custom Name */}
+              <div className="sm:col-span-4">
+                <input
+                  type="text"
+                  placeholder="Nombre repuesto"
+                  value={repuestoNombre}
+                  onChange={(e) => setRepuestoNombre(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900"
+                />
+              </div>
+
+              {/* Price */}
+              <div className="sm:col-span-3">
+                <input
+                  type="number"
+                  placeholder="Precio ($)"
+                  value={repuestoPrecio}
+                  onChange={(e) => setRepuestoPrecio(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <label className="text-slate-600 font-semibold">Cant:</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={repuestoCantidad}
+                    onChange={(e) => setRepuestoCantidad(Math.max(1, Number(e.target.value)))}
+                    className="w-16 p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center text-slate-900"
+                  />
+                </div>
+
+                {servicios.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-slate-600 font-semibold">Asignar a:</label>
+                    <select
+                      value={targetServiceId}
+                      onChange={(e) => setTargetServiceId(e.target.value)}
+                      className="p-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-medium"
+                    >
+                      <option value="AUTO">Última tarea / Tarea actual</option>
+                      {servicios.map((s, idx) => (
+                        <option key={s.id} value={s.id}>
+                          {idx + 1}. {s.descripcion || 'Sin título'}
+                        </option>
+                      ))}
+                      <option value="NEW">+ Crear nueva línea "Repuestos"</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddRepuestoDirect}
+                disabled={!repuestoNombre.trim()}
+                className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold rounded-lg text-xs transition-colors flex items-center gap-1 shadow-2xs shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                <span>Agregar Repuesto</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Suma General / Resumen de Costos */}
+          <div className="bg-slate-900 text-white p-4 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-md mt-4">
+            <div>
+              <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block">
+                Suma General de la Órden
+              </span>
+              <div className="flex flex-wrap items-center gap-3 text-xs mt-1 text-slate-300 font-medium">
+                <span>Mano de obra: <strong className="text-white">${totalManoObra.toLocaleString('es-AR')}</strong></span>
+                <span>•</span>
+                <span>Repuestos / Insumos: <strong className="text-white">${totalRepuestos.toLocaleString('es-AR')}</strong></span>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">TOTAL ESTIMADO GENERAL</span>
+              <span className="text-2xl font-extrabold text-amber-400">
+                ${(servicios.length > 0 ? totalGeneralCalculado : Number(totalEstimado) || 0).toLocaleString('es-AR')}
+              </span>
+            </div>
+          </div>
+
+          </div>
+
+          {/* Fixed Footer */}
+          <div className="border-t border-slate-100 p-4 sm:p-5 shrink-0 bg-white flex justify-end gap-3">
             <button
               type="button"
               onClick={onClose}

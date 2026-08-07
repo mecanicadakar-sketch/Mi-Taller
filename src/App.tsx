@@ -9,6 +9,7 @@ import {
   saveWorkOrder,
   updateWorkOrderStatus,
   saveBudget,
+  deleteBudget,
   saveMechanic,
   deleteMechanic,
   deleteWorkOrder,
@@ -133,106 +134,129 @@ export default function App() {
         try { setClients(JSON.parse(storedClients)); } catch (e) { setClients(INITIAL_CLIENTS); }
       } else {
         setClients(INITIAL_CLIENTS);
+        localStorage.setItem('mitaller_guest_clients', JSON.stringify(INITIAL_CLIENTS));
       }
 
       if (storedInventory) {
         try { setInventory(JSON.parse(storedInventory)); } catch (e) { setInventory(INITIAL_INVENTORY); }
       } else {
         setInventory(INITIAL_INVENTORY);
+        localStorage.setItem('mitaller_guest_inventory', JSON.stringify(INITIAL_INVENTORY));
       }
 
       if (storedWorkOrders) {
         try { setWorkOrders(JSON.parse(storedWorkOrders)); } catch (e) { setWorkOrders(INITIAL_WORK_ORDERS); }
       } else {
         setWorkOrders(INITIAL_WORK_ORDERS);
+        localStorage.setItem('mitaller_guest_workOrders', JSON.stringify(INITIAL_WORK_ORDERS));
       }
 
       if (storedBudgets) {
         try { setBudgets(JSON.parse(storedBudgets)); } catch (e) { setBudgets(INITIAL_BUDGETS); }
       } else {
         setBudgets(INITIAL_BUDGETS);
+        localStorage.setItem('mitaller_guest_budgets', JSON.stringify(INITIAL_BUDGETS));
       }
 
       if (storedMechanics) {
         try { setMechanics(JSON.parse(storedMechanics)); } catch (e) { setMechanics(INITIAL_MECHANICS); }
       } else {
         setMechanics(INITIAL_MECHANICS);
+        localStorage.setItem('mitaller_guest_mechanics', JSON.stringify(INITIAL_MECHANICS));
       }
       return;
     }
+
+    // Load user cached local data initially so UI responds instantly
+    const userClientsKey = `mitaller_${currentUser.uid}_clients`;
+    const userInventoryKey = `mitaller_${currentUser.uid}_inventory`;
+    const userOrdersKey = `mitaller_${currentUser.uid}_workOrders`;
+    const userBudgetsKey = `mitaller_${currentUser.uid}_budgets`;
+    const userMechanicsKey = `mitaller_${currentUser.uid}_mechanics`;
+
+    const cClients = localStorage.getItem(userClientsKey);
+    if (cClients) { try { setClients(JSON.parse(cClients)); } catch (e) {} }
+    const cInventory = localStorage.getItem(userInventoryKey);
+    if (cInventory) { try { setInventory(JSON.parse(cInventory)); } catch (e) {} }
+    const cOrders = localStorage.getItem(userOrdersKey);
+    if (cOrders) { try { setWorkOrders(JSON.parse(cOrders)); } catch (e) {} }
+    const cBudgets = localStorage.getItem(userBudgetsKey);
+    if (cBudgets) { try { setBudgets(JSON.parse(cBudgets)); } catch (e) {} }
+    const cMechanics = localStorage.getItem(userMechanicsKey);
+    if (cMechanics) { try { setMechanics(JSON.parse(cMechanics)); } catch (e) {} }
 
     // Subscribe to Firestore for logged in user's tallerId
     const unsubscribeFirestore = subscribeToWorkshopCollections(
       currentUser.uid,
       async (data) => {
-        if (data.clients.length > 0) {
+        if (data.clients && data.clients.length > 0) {
           setClients(data.clients);
-          localStorage.setItem(`mitaller_${currentUser.uid}_clients`, JSON.stringify(data.clients));
-        } else {
-          const cached = localStorage.getItem(`mitaller_${currentUser.uid}_clients`) || localStorage.getItem('mitaller_guest_clients');
-          if (cached) {
-            try { setClients(JSON.parse(cached)); } catch (e) {}
-          }
+          localStorage.setItem(userClientsKey, JSON.stringify(data.clients));
         }
 
-        if (data.inventory.length > 0) {
+        if (data.inventory && data.inventory.length > 0) {
           setInventory(data.inventory);
-          localStorage.setItem(`mitaller_${currentUser.uid}_inventory`, JSON.stringify(data.inventory));
-        } else {
-          const cached = localStorage.getItem(`mitaller_${currentUser.uid}_inventory`) || localStorage.getItem('mitaller_guest_inventory');
-          if (cached) {
-            try { setInventory(JSON.parse(cached)); } catch (e) {}
-          }
+          localStorage.setItem(userInventoryKey, JSON.stringify(data.inventory));
         }
 
-        if (data.workOrders.length > 0) {
+        if (data.workOrders && data.workOrders.length > 0) {
           setWorkOrders(data.workOrders);
-          localStorage.setItem(`mitaller_${currentUser.uid}_workOrders`, JSON.stringify(data.workOrders));
-        } else {
-          const cached = localStorage.getItem(`mitaller_${currentUser.uid}_workOrders`) || localStorage.getItem('mitaller_guest_workOrders');
-          if (cached) {
-            try { setWorkOrders(JSON.parse(cached)); } catch (e) {}
-          }
+          localStorage.setItem(userOrdersKey, JSON.stringify(data.workOrders));
         }
 
-        if (data.budgets.length > 0) {
+        if (data.budgets && data.budgets.length > 0) {
           setBudgets(data.budgets);
+          localStorage.setItem(userBudgetsKey, JSON.stringify(data.budgets));
         }
 
         if (data.mechanics && data.mechanics.length > 0) {
           setMechanics(data.mechanics);
+          localStorage.setItem(userMechanicsKey, JSON.stringify(data.mechanics));
         }
 
         if (data.workshop) {
           setWorkshop(data.workshop);
+          localStorage.setItem(`mitaller_${currentUser.uid}_workshop`, JSON.stringify(data.workshop));
+          localStorage.setItem('mitaller_workshop_profile', JSON.stringify(data.workshop));
         } else {
-          // Auto-create initial workshop profile doc in Firestore if missing
-          const defaultName = currentUser.displayName
-            ? `Taller de ${currentUser.displayName}`
-            : currentUser.email
-            ? `Taller ${currentUser.email.split('@')[0]}`
-            : 'Mecanica Dakar';
+          // Check cached workshop profile
+          const cachedProfileStr = localStorage.getItem(`mitaller_${currentUser.uid}_workshop`) || localStorage.getItem('mitaller_workshop_profile');
+          let cachedProfile: Workshop | null = null;
+          if (cachedProfileStr) {
+            try { cachedProfile = JSON.parse(cachedProfileStr); } catch (e) {}
+          }
 
-          const newWorkshop: Workshop = {
-            id: currentUser.uid,
-            nombreTaller: defaultName,
-            nombreOwner: currentUser.displayName || 'Fabio Torres',
-            email: currentUser.email || 'mecanicadakar@gmail.com',
-            telefono: '+595975635770',
-            direccion: '',
-            createdAt: new Date().toISOString(),
-            subscription: {
-              plan: 'trial',
-              status: 'trial',
-              trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-              maxWorkOrders: 50,
-            },
-          };
-          setWorkshop(newWorkshop);
-          try {
-            await createWorkshopProfile(newWorkshop);
-          } catch (err) {
-            console.warn('Could not auto-create workshop profile:', err);
+          if (cachedProfile) {
+            setWorkshop(cachedProfile);
+          } else {
+            // Auto-create initial workshop profile doc in Firestore if missing
+            const defaultName = currentUser.displayName
+              ? `Taller de ${currentUser.displayName}`
+              : currentUser.email
+              ? `Taller ${currentUser.email.split('@')[0]}`
+              : 'Mecanica Dakar';
+
+            const newWorkshop: Workshop = {
+              id: currentUser.uid,
+              nombreTaller: defaultName,
+              nombreOwner: currentUser.displayName || 'Fabio Torres',
+              email: currentUser.email || 'mecanicadakar@gmail.com',
+              telefono: '+595975635770',
+              direccion: '',
+              createdAt: new Date().toISOString(),
+              subscription: {
+                plan: 'trial',
+                status: 'trial',
+                trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                maxWorkOrders: 50,
+              },
+            };
+            setWorkshop(newWorkshop);
+            try {
+              await createWorkshopProfile(newWorkshop);
+            } catch (err) {
+              console.warn('Could not auto-create workshop profile:', err);
+            }
           }
         }
       }
@@ -268,51 +292,117 @@ export default function App() {
   };
 
   const handleDeleteWorkOrder = async (orderId: string) => {
+    setWorkOrders((prev) => {
+      const next = prev.filter((o) => o.id !== orderId);
+      const key = currentUser ? `mitaller_${currentUser.uid}_workOrders` : 'mitaller_guest_workOrders';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
     if (currentUser) {
       await deleteWorkOrder(orderId);
     }
-    setWorkOrders((prev) => prev.filter((o) => o.id !== orderId));
   };
 
   const handleDeleteClient = async (clientId: string) => {
+    setClients((prev) => {
+      const next = prev.filter((c) => c.id !== clientId);
+      const key = currentUser ? `mitaller_${currentUser.uid}_clients` : 'mitaller_guest_clients';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
     if (currentUser) {
       await deleteClient(clientId);
     }
-    setClients((prev) => prev.filter((c) => c.id !== clientId));
   };
 
   // Handlers
   const handleAddClient = async (newClient: Client) => {
+    setClients((prev) => {
+      const idx = prev.findIndex((c) => c.id === newClient.id);
+      const next = idx >= 0 ? prev.map((c, i) => (i === idx ? newClient : c)) : [newClient, ...prev];
+      const key = currentUser ? `mitaller_${currentUser.uid}_clients` : 'mitaller_guest_clients';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
     if (currentUser) {
       await saveClient(newClient, currentUser.uid);
-    } else {
-      setClients((prev) => [newClient, ...prev]);
     }
   };
 
   const handleAddInventoryItem = async (newItem: InventoryItem) => {
+    setInventory((prev) => {
+      const idx = prev.findIndex((i) => i.id === newItem.id);
+      const next = idx >= 0 ? prev.map((item, i) => (i === idx ? newItem : item)) : [newItem, ...prev];
+      const key = currentUser ? `mitaller_${currentUser.uid}_inventory` : 'mitaller_guest_inventory';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
     if (currentUser) {
       await saveInventoryItem(newItem, currentUser.uid);
-    } else {
-      setInventory((prev) => [newItem, ...prev]);
     }
   };
 
   const handleUpdateStock = async (itemId: string, newStock: number) => {
+    setInventory((prev) => {
+      const next = prev.map((item) => (item.id === itemId ? { ...item, stockActual: newStock } : item));
+      const key = currentUser ? `mitaller_${currentUser.uid}_inventory` : 'mitaller_guest_inventory';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
     if (currentUser) {
       await updateStock(itemId, newStock);
-    } else {
-      setInventory((prev) =>
-        prev.map((item) => (item.id === itemId ? { ...item, stockActual: newStock } : item))
-      );
+    }
+  };
+
+  const handleDeleteInventoryItem = async (itemId: string) => {
+    setInventory((prev) => {
+      const next = prev.filter((i) => i.id !== itemId);
+      const key = currentUser ? `mitaller_${currentUser.uid}_inventory` : 'mitaller_guest_inventory';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+    if (currentUser) {
+      await deleteInventoryItem(itemId);
     }
   };
 
   const handleCreateWorkOrder = async (newOrder: WorkOrder) => {
+    setWorkOrders((prev) => {
+      const idx = prev.findIndex((o) => o.id === newOrder.id);
+      const next = idx >= 0 ? prev.map((o, i) => (i === idx ? newOrder : o)) : [newOrder, ...prev];
+      const key = currentUser ? `mitaller_${currentUser.uid}_workOrders` : 'mitaller_guest_workOrders';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+
+    // Check client vehicle update locally
+    setClients((prev) => {
+      const existingClientIndex = prev.findIndex((c) => c.id === newOrder.clienteId);
+      let updatedClients = [...prev];
+      if (existingClientIndex >= 0) {
+        const client = { ...updatedClients[existingClientIndex] };
+        const vehicleExists = client.vehiculos.some((v) => v.patente === newOrder.vehiculo.patente);
+        if (!vehicleExists) {
+          client.vehiculos = [...client.vehiculos, newOrder.vehiculo];
+          updatedClients[existingClientIndex] = client;
+        }
+      } else {
+        const newClient: Client = {
+          id: newOrder.clienteId,
+          nombre: newOrder.clienteNombre,
+          telefono: newOrder.clienteTelefono,
+          email: '',
+          vehiculos: [newOrder.vehiculo],
+        };
+        updatedClients = [newClient, ...prev];
+      }
+      const key = currentUser ? `mitaller_${currentUser.uid}_clients` : 'mitaller_guest_clients';
+      localStorage.setItem(key, JSON.stringify(updatedClients));
+      return updatedClients;
+    });
+
     if (currentUser) {
       await saveWorkOrder(newOrder, currentUser.uid);
-
-      // Check client vehicle update
       const existingClient = clients.find((c) => c.id === newOrder.clienteId);
       if (existingClient) {
         const vehicleExists = existingClient.vehiculos.some((v) => v.patente === newOrder.vehiculo.patente);
@@ -333,71 +423,92 @@ export default function App() {
         };
         await saveClient(newClient, currentUser.uid);
       }
-    } else {
-      setWorkOrders((prev) => [newOrder, ...prev]);
-      setClients((prev) => {
-        const existingClientIndex = prev.findIndex((c) => c.id === newOrder.clienteId);
-        if (existingClientIndex >= 0) {
-          const updated = [...prev];
-          const client = updated[existingClientIndex];
-          const vehicleExists = client.vehiculos.some((v) => v.patente === newOrder.vehiculo.patente);
-          if (!vehicleExists) {
-            client.vehiculos.push(newOrder.vehiculo);
-          }
-          return updated;
-        } else {
-          const newClient: Client = {
-            id: newOrder.clienteId,
-            nombre: newOrder.clienteNombre,
-            telefono: newOrder.clienteTelefono,
-            email: '',
-            vehiculos: [newOrder.vehiculo],
-          };
-          return [newClient, ...prev];
-        }
-      });
     }
   };
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    setWorkOrders((prev) => {
+      const next = prev.map((o) => (o.id === orderId ? { ...o, estado: newStatus } : o));
+      const key = currentUser ? `mitaller_${currentUser.uid}_workOrders` : 'mitaller_guest_workOrders';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
     if (currentUser) {
       await updateWorkOrderStatus(orderId, newStatus);
-    } else {
-      setWorkOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, estado: newStatus } : o))
-      );
     }
   };
 
   const handleUpdateOrderDetails = async (updated: WorkOrder) => {
+    setWorkOrders((prev) => {
+      const next = prev.map((o) => (o.id === updated.id ? updated : o));
+      const key = currentUser ? `mitaller_${currentUser.uid}_workOrders` : 'mitaller_guest_workOrders';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
     if (currentUser) {
       await saveWorkOrder(updated, currentUser.uid);
-    } else {
-      setWorkOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
     }
   };
 
   const handleAddBudget = async (newBudget: Budget) => {
+    setBudgets((prev) => {
+      const idx = prev.findIndex((b) => b.id === newBudget.id);
+      const next = idx >= 0 ? prev.map((b, i) => (i === idx ? newBudget : b)) : [newBudget, ...prev];
+      const key = currentUser ? `mitaller_${currentUser.uid}_budgets` : 'mitaller_guest_budgets';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
     if (currentUser) {
       await saveBudget(newBudget, currentUser.uid);
-    } else {
-      setBudgets((prev) => [newBudget, ...prev]);
+    }
+  };
+
+  const handleUpdateBudget = async (updated: Budget) => {
+    setBudgets((prev) => {
+      const next = prev.map((b) => (b.id === updated.id ? updated : b));
+      const key = currentUser ? `mitaller_${currentUser.uid}_budgets` : 'mitaller_guest_budgets';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+    if (currentUser) {
+      await saveBudget(updated, currentUser.uid);
+    }
+  };
+
+  const handleDeleteBudget = async (budgetId: string) => {
+    setBudgets((prev) => {
+      const next = prev.filter((b) => b.id !== budgetId);
+      const key = currentUser ? `mitaller_${currentUser.uid}_budgets` : 'mitaller_guest_budgets';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+    if (currentUser) {
+      await deleteBudget(budgetId);
     }
   };
 
   const handleAddMechanic = async (newMechanic: Mechanic) => {
+    setMechanics((prev) => {
+      const idx = prev.findIndex((m) => m.id === newMechanic.id);
+      const next = idx >= 0 ? prev.map((m, i) => (i === idx ? newMechanic : m)) : [newMechanic, ...prev];
+      const key = currentUser ? `mitaller_${currentUser.uid}_mechanics` : 'mitaller_guest_mechanics';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
     if (currentUser) {
       await saveMechanic(newMechanic, currentUser.uid);
-    } else {
-      setMechanics((prev) => [newMechanic, ...prev]);
     }
   };
 
   const handleDeleteMechanic = async (mechanicId: string) => {
+    setMechanics((prev) => {
+      const next = prev.filter((m) => m.id !== mechanicId);
+      const key = currentUser ? `mitaller_${currentUser.uid}_mechanics` : 'mitaller_guest_mechanics';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
     if (currentUser) {
       await deleteMechanic(mechanicId);
-    } else {
-      setMechanics((prev) => prev.filter((m) => m.id !== mechanicId));
     }
   };
 
@@ -405,10 +516,14 @@ export default function App() {
     const target = mechanics.find((m) => m.id === mechanicId);
     if (target) {
       const updated = { ...target, activo: !currentStatus };
+      setMechanics((prev) => {
+        const next = prev.map((m) => (m.id === mechanicId ? updated : m));
+        const key = currentUser ? `mitaller_${currentUser.uid}_mechanics` : 'mitaller_guest_mechanics';
+        localStorage.setItem(key, JSON.stringify(next));
+        return next;
+      });
       if (currentUser) {
         await saveMechanic(updated, currentUser.uid);
-      } else {
-        setMechanics((prev) => prev.map((m) => (m.id === mechanicId ? updated : m)));
       }
     }
   };
@@ -607,6 +722,7 @@ export default function App() {
                 setShowNewWorkOrderModal(true);
               }}
               onUpdateStatus={handleUpdateOrderStatus}
+              onDeleteOrder={handleDeleteWorkOrder}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
             />
@@ -629,6 +745,7 @@ export default function App() {
               inventory={inventory}
               onAddItem={handleAddInventoryItem}
               onUpdateStock={handleUpdateStock}
+              onDeleteItem={handleDeleteInventoryItem}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
             />
@@ -637,7 +754,10 @@ export default function App() {
           {activeTab === 'budgets' && (
             <BudgetView
               budgets={budgets}
+              workshop={workshop}
               onAddBudget={handleAddBudget}
+              onUpdateBudget={handleUpdateBudget}
+              onDeleteBudget={handleDeleteBudget}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
             />
@@ -838,6 +958,7 @@ export default function App() {
         <NewWorkOrderModal
           clients={clients}
           mechanics={mechanics}
+          inventory={inventory}
           preselectedClient={preselectedClient}
           preselectedVehicle={preselectedVehicle}
           onClose={() => setShowNewWorkOrderModal(false)}

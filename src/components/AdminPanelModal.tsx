@@ -25,7 +25,8 @@ import {
   Phone,
   Sparkles,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Mail
 } from 'lucide-react';
 
 interface AdminPanelModalProps {
@@ -51,6 +52,8 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
   const [newCodeCustom, setNewCodeCustom] = useState('');
   const [newCodePlan, setNewCodePlan] = useState<'pro' | 'basico'>('pro');
   const [newCodeDays, setNewCodeDays] = useState<number>(30);
+  const [assignedEmail, setAssignedEmail] = useState('');
+  const [assignedToName, setAssignedToName] = useState('');
   const [creatingLicense, setCreatingLicense] = useState(false);
   const [actionSuccess, setActionSuccess] = useState('');
   const [actionError, setActionError] = useState('');
@@ -135,9 +138,21 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
       `PRO-${Math.random().toString(36).substring(2, 7).toUpperCase()}-2026`;
 
     try {
-      await createLicenseCodeInFirestore(codeToUse, newCodePlan, newCodeDays);
-      setActionSuccess(`Código de Licencia "${codeToUse}" creado con éxito.`);
+      await createLicenseCodeInFirestore(
+        codeToUse,
+        newCodePlan,
+        newCodeDays,
+        assignedEmail,
+        assignedToName
+      );
+      let successMsg = `Código de Licencia "${codeToUse}" creado con éxito.`;
+      if (assignedEmail.trim()) {
+        successMsg += ` Asignado a: ${assignedEmail.trim()}`;
+      }
+      setActionSuccess(successMsg);
       setNewCodeCustom('');
+      setAssignedEmail('');
+      setAssignedToName('');
       await loadData();
     } catch (err: any) {
       console.error('Error creating license code:', err);
@@ -147,15 +162,27 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
     }
   };
 
+  const handleAssignCodeToWorkshop = (w: Workshop) => {
+    setActiveTab('licenses');
+    setAssignedEmail(w.email || '');
+    setAssignedToName(w.nombreTaller || w.nombreOwner || '');
+    const cleanName = (w.nombreTaller || w.nombreOwner || 'TALLER')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '');
+    setNewCodeCustom(`PRO-${cleanName.substring(0, 8)}-2026`);
+    setActionSuccess(`Formulario prellenado para el taller: ${w.nombreTaller || w.email}`);
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setActionSuccess(`Código "${text}" copiado al portapapeles.`);
     setTimeout(() => setActionSuccess(''), 3000);
   };
 
-  const generateWhatsAppShare = (code: string, days: number) => {
+  const generateWhatsAppShare = (lic: LicenseCodeDoc) => {
+    const greeting = lic.assignedToName ? `Hola *${lic.assignedToName}*! ` : '¡Hola! ';
     const text = encodeURIComponent(
-      `¡Hola! Tu código de activación para MiTaller es: *${code}*\n\nEste código te otorga *${days} días* de acceso total al *Plan PRO*. Ingrésalo en la sección "Suscripción & Plan" dentro de tu aplicación.`
+      `${greeting}Tu código de activación para MiTaller es: *${lic.code}*\n\nEste código te otorga *${lic.days} días* de acceso total al *Plan PRO*. Ingrésalo en la sección "Suscripción & Plan" dentro de tu aplicación.`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
@@ -364,11 +391,20 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
                             {/* Actions */}
                             <div className="flex flex-wrap items-center gap-2 shrink-0">
                               <button
+                                onClick={() => handleAssignCodeToWorkshop(w)}
+                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl border border-slate-700 transition-colors flex items-center gap-1"
+                                title="Generar código de acceso prefijando este usuario"
+                              >
+                                <Key className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Asignar Código</span>
+                              </button>
+
+                              <button
                                 onClick={() => handleUpdateSubscription(w.id, 'pro', 'active', 30)}
                                 className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1"
                               >
                                 <Zap className="w-3.5 h-3.5" />
-                                <span>Activar PRO (30 días)</span>
+                                <span>Activar PRO (30d)</span>
                               </button>
 
                               <button
@@ -398,52 +434,107 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
                 <div className="space-y-6">
                   {/* Create License Form */}
                   <div className="p-5 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
-                    <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                      <Plus className="w-4 h-4 text-amber-400" />
-                      Generar Nuevo Código de Licencia
-                    </h3>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                        <Plus className="w-4 h-4 text-amber-400" />
+                        Generar Nuevo Código de Licencia y Asignar Usuario
+                      </h3>
 
-                    <form onSubmit={handleCreateLicense} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-[11px] font-semibold text-slate-400 block mb-1">
-                          Código Personalizado (o Dejar Vacío para Auto)
-                        </label>
-                        <input
-                          type="text"
-                          value={newCodeCustom}
-                          onChange={(e) => setNewCodeCustom(e.target.value)}
-                          placeholder="Ej: TALLERYA-PRO-2026"
-                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-amber-400 placeholder-slate-600 uppercase focus:outline-hidden focus:border-amber-400"
-                        />
+                      {workshops.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-slate-400">Autollenar con taller:</span>
+                          <select
+                            onChange={(e) => {
+                              const selected = workshops.find((w) => w.id === e.target.value);
+                              if (selected) handleAssignCodeToWorkshop(selected);
+                            }}
+                            className="px-2.5 py-1 bg-slate-900 border border-slate-700 rounded-lg text-xs text-amber-300 font-semibold focus:outline-hidden"
+                            defaultValue=""
+                          >
+                            <option value="" disabled>-- Elegir Taller --</option>
+                            {workshops.map((w) => (
+                              <option key={w.id} value={w.id}>
+                                {w.nombreTaller || w.email || w.id.substring(0, 8)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    <form onSubmit={handleCreateLicense} className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1 mb-1">
+                            <Mail className="w-3.5 h-3.5 text-amber-400" />
+                            Email del Usuario / Taller Asignado (Opcional)
+                          </label>
+                          <input
+                            type="email"
+                            value={assignedEmail}
+                            onChange={(e) => setAssignedEmail(e.target.value)}
+                            placeholder="ejemplo@correo.com"
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-white placeholder-slate-600 focus:outline-hidden focus:border-amber-400"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1 mb-1">
+                            <User className="w-3.5 h-3.5 text-amber-400" />
+                            Nombre del Taller / Destinatario (Opcional)
+                          </label>
+                          <input
+                            type="text"
+                            value={assignedToName}
+                            onChange={(e) => setAssignedToName(e.target.value)}
+                            placeholder="Ej: Taller Dakar / Juan Pérez"
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-semibold text-white placeholder-slate-600 focus:outline-hidden focus:border-amber-400"
+                          />
+                        </div>
                       </div>
 
-                      <div>
-                        <label className="text-[11px] font-semibold text-slate-400 block mb-1">Duración (Días)</label>
-                        <select
-                          value={newCodeDays}
-                          onChange={(e) => setNewCodeDays(Number(e.target.value))}
-                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-hidden focus:border-amber-400"
-                        >
-                          <option value={30}>30 Días (1 Mes)</option>
-                          <option value={90}>90 Días (3 Meses)</option>
-                          <option value={180}>180 Días (6 Meses)</option>
-                          <option value={365}>365 Días (1 Año)</option>
-                        </select>
-                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-400 block mb-1">
+                            Código Personalizado (o Dejar Vacío para Auto)
+                          </label>
+                          <input
+                            type="text"
+                            value={newCodeCustom}
+                            onChange={(e) => setNewCodeCustom(e.target.value)}
+                            placeholder="Ej: TALLERYA-PRO-2026"
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-amber-400 placeholder-slate-600 uppercase focus:outline-hidden focus:border-amber-400"
+                          />
+                        </div>
 
-                      <div className="flex items-end">
-                        <button
-                          type="submit"
-                          disabled={creatingLicense}
-                          className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-1.5"
-                        >
-                          {creatingLicense ? (
-                            <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-                          ) : (
-                            <Key className="w-4 h-4" />
-                          )}
-                          <span>{creatingLicense ? 'Generando...' : 'Generar Código'}</span>
-                        </button>
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-400 block mb-1">Duración (Días)</label>
+                          <select
+                            value={newCodeDays}
+                            onChange={(e) => setNewCodeDays(Number(e.target.value))}
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-hidden focus:border-amber-400"
+                          >
+                            <option value={30}>30 Días (1 Mes)</option>
+                            <option value={90}>90 Días (3 Meses)</option>
+                            <option value={180}>180 Días (6 Meses)</option>
+                            <option value={365}>365 Días (1 Año)</option>
+                          </select>
+                        </div>
+
+                        <div className="flex items-end">
+                          <button
+                            type="submit"
+                            disabled={creatingLicense}
+                            className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            {creatingLicense ? (
+                              <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                            ) : (
+                              <Key className="w-4 h-4" />
+                            )}
+                            <span>{creatingLicense ? 'Generando...' : 'Generar Código y Asignar'}</span>
+                          </button>
+                        </div>
                       </div>
                     </form>
                   </div>
@@ -469,25 +560,47 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
                                 : 'bg-slate-950 border-amber-500/40'
                             }`}
                           >
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <span className="font-mono font-black text-amber-400 text-sm tracking-wider block">
-                                  {lic.code}
-                                </span>
-                                <span className="text-[11px] text-slate-400">
-                                  {lic.days} días Plan {lic.plan.toUpperCase()}
+                            <div className="space-y-2">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <span className="font-mono font-black text-amber-400 text-sm tracking-wider block">
+                                    {lic.code}
+                                  </span>
+                                  <span className="text-[11px] text-slate-400">
+                                    {lic.days} días Plan {lic.plan.toUpperCase()}
+                                  </span>
+                                </div>
+
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                    lic.used
+                                      ? 'bg-slate-800 text-slate-400'
+                                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  }`}
+                                >
+                                  {lic.used ? 'USADO' : 'DISPONIBLE'}
                                 </span>
                               </div>
 
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                                  lic.used
-                                    ? 'bg-slate-800 text-slate-400'
-                                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                }`}
-                              >
-                                {lic.used ? 'USADO' : 'DISPONIBLE'}
-                              </span>
+                              {/* Display assigned email or user if defined */}
+                              {(lic.assignedEmail || lic.assignedToName) && (
+                                <div className="p-2 bg-slate-900 border border-slate-800 rounded-lg text-xs space-y-0.5">
+                                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                                    Destinatario Asignado:
+                                  </span>
+                                  <div className="flex flex-wrap items-center gap-2 text-slate-200">
+                                    {lic.assignedToName && (
+                                      <span className="font-bold">{lic.assignedToName}</span>
+                                    )}
+                                    {lic.assignedEmail && (
+                                      <span className="text-slate-400 text-[11px] font-mono flex items-center gap-1">
+                                        <Mail className="w-3 h-3 text-slate-500 shrink-0" />
+                                        {lic.assignedEmail}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
 
                             {lic.used && (
@@ -514,7 +627,7 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
                                 </button>
 
                                 <button
-                                  onClick={() => generateWhatsAppShare(lic.code, lic.days)}
+                                  onClick={() => generateWhatsAppShare(lic)}
                                   className="flex-1 py-1.5 px-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 font-bold text-[11px] rounded-lg border border-emerald-500/30 transition-colors flex items-center justify-center gap-1"
                                 >
                                   <Send className="w-3 h-3 text-emerald-400" />

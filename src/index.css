@@ -1,1 +1,30 @@
 @import "tailwindcss";
+
+@media print {
+  /* Hide everything on page by default */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the printable modal sheet */
+  .printable-area,
+  .printable-area * {
+    visibility: visible;
+  }
+
+  .printable-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: white !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+}

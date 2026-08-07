@@ -1,31 +1,87 @@
 import React, { useState } from 'react';
-import { Budget } from '../types/tallerya';
+import { Budget, Workshop } from '../types/tallerya';
 import { PrintBudgetModal } from './PrintBudgetModal';
-import { Plus, Printer, FileText, Trash2, CheckCircle, Clock, XCircle, Search } from 'lucide-react';
+import { Plus, Printer, Edit, Trash2, Search, X, Save, Send } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 
 interface BudgetViewProps {
   budgets: Budget[];
+  workshop?: Workshop | null;
   onAddBudget: (budget: Budget) => void;
+  onUpdateBudget?: (budget: Budget) => void;
+  onDeleteBudget?: (budgetId: string) => void;
   searchTerm?: string;
   setSearchTerm?: (term: string) => void;
 }
 
 export function BudgetView({
   budgets,
+  workshop,
   onAddBudget,
+  onUpdateBudget,
+  onDeleteBudget,
   searchTerm = '',
   setSearchTerm,
 }: BudgetViewProps) {
   const [selectedForPrint, setSelectedForPrint] = useState<Budget | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [localSearch, setLocalSearch] = useState('');
 
-  // New Budget Form
+  const handleShareWhatsApp = (b: Budget) => {
+    let savedHeader = {
+      nombreTaller: workshop?.nombreTaller || 'MiTaller',
+      direccion: workshop?.direccion || '',
+      telefono: workshop?.telefono || '',
+    };
+    try {
+      const saved = localStorage.getItem('mitaller_print_header_data');
+      if (saved) {
+        savedHeader = { ...savedHeader, ...JSON.parse(saved) };
+      }
+    } catch (e) {}
+
+    const itemsList = b.items
+      .map(
+        (it) =>
+          `• ${it.descripcion} (x${it.cantidad}) - $${(
+            it.subtotal || it.cantidad * it.precioUnitario
+          ).toLocaleString('es-AR')}`
+      )
+      .join('\n');
+
+    let text = `📋 *PRESUPUESTO ${b.numeroPresupuesto}*\n`;
+    text += `🏬 *${savedHeader.nombreTaller}*\n`;
+    if (savedHeader.direccion) text += `📍 ${savedHeader.direccion}\n`;
+    if (savedHeader.telefono) text += `📞 Tel/WA: ${savedHeader.telefono}\n`;
+    text += `\n👤 *Cliente:* ${b.clienteNombre}\n`;
+    text += `🚗 *Vehículo:* ${b.vehiculoInfo}\n`;
+    text += `📅 *Fecha:* ${b.fecha}\n`;
+    text += `\n🛠️ *DETALLE DE SERVICIOS Y REPUESTOS:*\n${itemsList}\n`;
+    if (b.descuento > 0) {
+      text += `\n🏷️ *Descuento:* -$${b.descuento.toLocaleString('es-AR')}\n`;
+    }
+    text += `\n💰 *TOTAL ESTIMADO:* *$${b.total.toLocaleString('es-AR')}*\n`;
+    text += `\n¡Quedamos a su disposición para coordinar los trabajos!`;
+
+    const encodedText = encodeURIComponent(text);
+    const cleanPhone = b.clienteTelefono ? b.clienteTelefono.replace(/[^0-9]/g, '') : '';
+    const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodedText}` : `https://wa.me/?text=${encodedText}`;
+
+    window.open(waUrl, '_blank');
+  };
+
+  // Form state
   const [clienteNombre, setClienteNombre] = useState('');
   const [clienteTelefono, setClienteTelefono] = useState('');
   const [vehiculoInfo, setVehiculoInfo] = useState('');
   const [descuento, setDescuento] = useState(0);
+  const [estado, setEstado] = useState<'pendiente' | 'aprobado' | 'rechazado'>('pendiente');
+  const [items, setItems] = useState<
+    { descripcion: string; cantidad: number; precioUnitario: number; subtotal: number }[]
+  >([
+    { descripcion: 'Service de motor y cambio de aceite', cantidad: 1, precioUnitario: 85000, subtotal: 85000 },
+  ]);
 
   const activeSearch = searchTerm !== undefined && searchTerm !== '' ? searchTerm : localSearch;
 
@@ -41,11 +97,41 @@ export function BudgetView({
     );
   });
 
-  const [items, setItems] = useState<
-    { descripcion: string; cantidad: number; precioUnitario: number; subtotal: number }[]
-  >([
-    { descripcion: 'Service de motor y cambio de aceite', cantidad: 1, precioUnitario: 85000, subtotal: 85000 },
-  ]);
+  const handleOpenNewBudgetModal = () => {
+    setEditingBudget(null);
+    setClienteNombre('');
+    setClienteTelefono('');
+    setVehiculoInfo('');
+    setDescuento(0);
+    setEstado('pendiente');
+    setItems([{ descripcion: 'Mano de obra y diagnóstico', cantidad: 1, precioUnitario: 50000, subtotal: 50000 }]);
+    setShowAddModal(true);
+  };
+
+  const handleOpenEditBudgetModal = (budget: Budget) => {
+    setEditingBudget(budget);
+    setClienteNombre(budget.clienteNombre || '');
+    setClienteTelefono(budget.clienteTelefono || '');
+    setVehiculoInfo(budget.vehiculoInfo || '');
+    setDescuento(budget.descuento || 0);
+    setEstado(budget.estado || 'pendiente');
+    setItems(
+      budget.items && budget.items.length > 0
+        ? budget.items.map((it) => ({
+            descripcion: it.descripcion,
+            cantidad: it.cantidad,
+            precioUnitario: it.precioUnitario,
+            subtotal: it.subtotal || it.cantidad * it.precioUnitario,
+          }))
+        : [{ descripcion: 'Mano de obra', cantidad: 1, precioUnitario: 40000, subtotal: 40000 }]
+    );
+    setShowAddModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowAddModal(false);
+    setEditingBudget(null);
+  };
 
   const handleAddItemRow = () => {
     setItems((prev) => [
@@ -78,28 +164,58 @@ export function BudgetView({
     e.preventDefault();
     if (!clienteNombre.trim()) return;
 
-    const newBudget: Budget = {
-      id: 'b_' + Date.now(),
-      numeroPresupuesto: `PRES-2026-${Math.floor(100 + Math.random() * 900)}`,
-      fecha: new Date().toISOString().split('T')[0],
-      clienteNombre: clienteNombre.trim(),
-      clienteTelefono: clienteTelefono.trim(),
-      vehiculoInfo: vehiculoInfo.trim() || 'Vehículo Cliente',
-      items,
-      descuento: Number(descuento) || 0,
-      total: calculateTotal(),
-      estado: 'pendiente',
-    };
+    if (editingBudget) {
+      const updatedBudget: Budget = {
+        ...editingBudget,
+        clienteNombre: clienteNombre.trim(),
+        clienteTelefono: clienteTelefono.trim(),
+        vehiculoInfo: vehiculoInfo.trim() || 'Vehículo Cliente',
+        items,
+        descuento: Number(descuento) || 0,
+        total: calculateTotal(),
+        estado,
+      };
 
-    onAddBudget(newBudget);
-    setShowAddModal(false);
+      if (onUpdateBudget) {
+        onUpdateBudget(updatedBudget);
+      } else {
+        onAddBudget(updatedBudget);
+      }
+    } else {
+      const newBudget: Budget = {
+        id: 'b_' + Date.now(),
+        numeroPresupuesto: `PRES-2026-${Math.floor(100 + Math.random() * 900)}`,
+        fecha: new Date().toISOString().split('T')[0],
+        clienteNombre: clienteNombre.trim(),
+        clienteTelefono: clienteTelefono.trim(),
+        vehiculoInfo: vehiculoInfo.trim() || 'Vehículo Cliente',
+        items,
+        descuento: Number(descuento) || 0,
+        total: calculateTotal(),
+        estado,
+      };
 
-    // Reset Form
-    setClienteNombre('');
-    setClienteTelefono('');
-    setVehiculoInfo('');
-    setDescuento(0);
-    setItems([{ descripcion: 'Mano de obra', cantidad: 1, precioUnitario: 40000, subtotal: 40000 }]);
+      onAddBudget(newBudget);
+    }
+
+    handleCloseModal();
+  };
+
+  const handleDelete = (budgetId: string) => {
+    if (confirm('¿Estás seguro de que deseas eliminar este presupuesto?')) {
+      if (onDeleteBudget) {
+        onDeleteBudget(budgetId);
+      }
+    }
+  };
+
+  const handleChangeStatus = (budget: Budget, newStatus: 'pendiente' | 'aprobado' | 'rechazado') => {
+    const updated = { ...budget, estado: newStatus };
+    if (onUpdateBudget) {
+      onUpdateBudget(updated);
+    } else {
+      onAddBudget(updated);
+    }
   };
 
   return (
@@ -108,11 +224,11 @@ export function BudgetView({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Presupuestos y Cotizaciones</h2>
-          <p className="text-xs text-slate-500">Genera presupuestos detallados para imprimir o enviar por WhatsApp</p>
+          <p className="text-xs text-slate-500">Crea y edita presupuestos detallados para enviar o imprimir</p>
         </div>
 
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={handleOpenNewBudgetModal}
           className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-all flex items-center gap-1.5"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -152,69 +268,112 @@ export function BudgetView({
                 </div>
                 <h3 className="font-bold text-slate-900 text-base mt-1">{b.clienteNombre}</h3>
                 <p className="text-xs text-slate-500">{b.vehiculoInfo}</p>
+                {b.clienteTelefono && <p className="text-xs text-slate-400">Tel: {b.clienteTelefono}</p>}
               </div>
 
-              <span
-                className={`px-2.5 py-1 text-xs font-bold rounded-lg ${
-                  b.estado === 'aprobado'
-                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                    : b.estado === 'pendiente'
-                    ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                    : 'bg-rose-50 text-rose-800 border border-rose-200'
-                }`}
-              >
-                {b.estado.toUpperCase()}
-              </span>
+              <div className="flex items-center gap-2">
+                <select
+                  value={b.estado}
+                  onChange={(e) => handleChangeStatus(b, e.target.value as any)}
+                  className={`px-2 py-1 text-xs font-bold rounded-lg border cursor-pointer ${
+                    b.estado === 'aprobado'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : b.estado === 'pendiente'
+                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      : 'bg-rose-50 text-rose-800 border-rose-200'
+                  }`}
+                >
+                  <option value="pendiente">PENDIENTE</option>
+                  <option value="aprobado">APROBADO</option>
+                  <option value="rechazado">RECHAZADO</option>
+                </select>
+
+                <button
+                  onClick={() => handleOpenEditBudgetModal(b)}
+                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+                  title="Editar Presupuesto"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => handleDelete(b.id)}
+                  className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                  title="Eliminar Presupuesto"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Items Summary */}
             <div className="space-y-1.5 text-xs">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Resumen de Ítems ({b.items.length})
+                Resumen de Ítems ({b.items?.length || 0})
               </span>
-              {b.items.slice(0, 3).map((it, i) => (
+              {b.items?.slice(0, 3).map((it, i) => (
                 <div key={i} className="flex justify-between text-slate-700">
                   <span className="truncate max-w-[220px]">• {it.descripcion}</span>
-                  <span className="font-bold shrink-0">${it.subtotal.toLocaleString('es-AR')}</span>
+                  <span className="font-bold shrink-0">${(it.subtotal || 0).toLocaleString('es-AR')}</span>
                 </div>
               ))}
+              {b.items && b.items.length > 3 && (
+                <p className="text-[11px] text-slate-400 italic">+ {b.items.length - 3} ítems más...</p>
+              )}
             </div>
 
             {/* Footer / Total & Actions */}
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
               <div>
                 <span className="text-[10px] text-slate-400 uppercase font-bold">Total Est.</span>
-                <p className="text-lg font-black text-slate-900">${b.total.toLocaleString('es-AR')}</p>
+                <p className="text-lg font-black text-slate-900">${(b.total || 0).toLocaleString('es-AR')}</p>
               </div>
 
-              <button
-                onClick={() => setSelectedForPrint(b)}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5"
-              >
-                <Printer className="w-4 h-4" />
-                Imprimir / PDF
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handleShareWhatsApp(b)}
+                  className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1 cursor-pointer shrink-0"
+                  title="Enviar por WhatsApp"
+                >
+                  <Send className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>WhatsApp</span>
+                </button>
+
+                <button
+                  onClick={() => setSelectedForPrint(b)}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shrink-0"
+                  title="Imprimir o guardar PDF"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Imprimir / PDF</span>
+                </button>
+              </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Add Budget Modal */}
+      {/* Add / Edit Budget Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-5 shadow-2xl border border-slate-200 my-8">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl border border-slate-200 my-8">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-900 text-lg">Nuevo Presupuesto MiTaller</h3>
+              <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                <Edit className="w-5 h-5 text-amber-500" />
+                {editingBudget ? `Editar Presupuesto: ${editingBudget.numeroPresupuesto}` : 'Nuevo Presupuesto MiTaller'}
+              </h3>
               <button
-                onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+                type="button"
+                onClick={handleCloseModal}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                title="Cerrar ventana"
               >
-                &times;
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveBudget} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-700">Cliente *</label>
                   <input
@@ -235,6 +394,18 @@ export function BudgetView({
                     placeholder="+54 9 11..."
                     className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-700">Estado</label>
+                  <select
+                    value={estado}
+                    onChange={(e) => setEstado(e.target.value as any)}
+                    className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold"
+                  >
+                    <option value="pendiente">PENDIENTE</option>
+                    <option value="aprobado">APROBADO</option>
+                    <option value="rechazado">RECHAZADO</option>
+                  </select>
                 </div>
               </div>
 
@@ -258,7 +429,7 @@ export function BudgetView({
                   <button
                     type="button"
                     onClick={handleAddItemRow}
-                    className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1"
+                    className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200"
                   >
                     + Agregar ítem
                   </button>
@@ -299,7 +470,7 @@ export function BudgetView({
               </div>
 
               {/* Total Summary */}
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 text-xs">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2 text-xs">
                 <div className="flex justify-between items-center text-slate-600">
                   <span>Subtotal:</span>
                   <span className="font-bold">${calculateSubtotal().toLocaleString('es-AR')}</span>
@@ -310,28 +481,32 @@ export function BudgetView({
                     type="number"
                     value={descuento}
                     onChange={(e) => setDescuento(Number(e.target.value))}
-                    className="w-24 p-1 bg-white border border-slate-200 rounded text-right font-bold"
+                    className="w-28 p-1 bg-white border border-slate-200 rounded text-right font-bold"
                   />
                 </div>
-                <div className="flex justify-between items-center text-sm font-extrabold text-slate-900 pt-2 border-t border-slate-200">
-                  <span>TOTAL FINAL:</span>
+                <div className="flex justify-between items-center text-base font-extrabold text-slate-900 pt-2 border-t border-slate-200">
+                  <span>TOTAL ESTIMADO:</span>
                   <span className="text-amber-600">${calculateTotal().toLocaleString('es-AR')}</span>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+              {/* Prominent Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-xs text-slate-600 hover:text-slate-900 font-medium"
+                  onClick={handleCloseModal}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5"
                 >
-                  Cancelar
+                  <X className="w-4 h-4" />
+                  Cerrar
                 </button>
+
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-xs"
+                  className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center gap-2"
                 >
-                  Guardar Presupuesto
+                  <Save className="w-4 h-4" />
+                  {editingBudget ? 'Guardar Cambios' : 'Guardar Presupuesto'}
                 </button>
               </div>
             </form>
@@ -341,7 +516,7 @@ export function BudgetView({
 
       {/* Print Preview Modal */}
       {selectedForPrint && (
-        <PrintBudgetModal budget={selectedForPrint} onClose={() => setSelectedForPrint(null)} />
+        <PrintBudgetModal budget={selectedForPrint} workshop={workshop} onClose={() => setSelectedForPrint(null)} />
       )}
     </div>
   );

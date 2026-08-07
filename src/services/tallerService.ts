@@ -34,9 +34,21 @@ export async function createWorkshopProfile(workshop: Workshop): Promise<void> {
   const trialEnds = new Date();
   trialEnds.setDate(trialEnds.getDate() + 14);
 
+  // Check if profile already exists in localStorage or if existing subscription is active
+  let existingSub = workshop.subscription;
+  try {
+    const cachedProfile = localStorage.getItem('mitaller_workshop_profile');
+    if (cachedProfile) {
+      const parsed = JSON.parse(cachedProfile);
+      if (parsed.subscription && (parsed.subscription.status === 'active' || parsed.subscription.plan === 'pro')) {
+        existingSub = parsed.subscription;
+      }
+    }
+  } catch (e) {}
+
   const workshopData: Workshop = {
     ...workshop,
-    subscription: workshop.subscription || {
+    subscription: existingSub || {
       plan: 'trial',
       status: 'trial',
       trialEndsAt: trialEnds.toISOString(),
@@ -237,6 +249,11 @@ export async function saveBudget(budget: Budget, tallerId: string) {
   await setDoc(docRef, budgetData, { merge: true });
 }
 
+export async function deleteBudget(budgetId: string) {
+  const docRef = doc(db, 'budgets', budgetId);
+  await deleteDoc(docRef);
+}
+
 export async function saveMechanic(mechanic: Mechanic, tallerId: string) {
   const mechanicData = { ...mechanic, tallerId };
   const docRef = doc(db, 'mechanics', mechanic.id);
@@ -350,11 +367,31 @@ export async function searchWorkOrdersByPatente(searchPatente: string): Promise<
   }
 }
 
+// Timeout helper to prevent infinite loading when Firestore operations hang
+function fetchWithTimeout<T>(promise: Promise<T>, timeoutMs = 2500): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Timeout de ${timeoutMs}ms al conectar con Firestore`));
+    }, timeoutMs);
+
+    promise
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 // Fetch all registered workshops (for Admin Panel)
 export async function getAllWorkshops(): Promise<Workshop[]> {
   const workshopsMap: Record<string, Workshop> = {};
 
   const addOrMergeWorkshop = (w: Partial<Workshop> & { id: string }) => {
+    if (!w || !w.id) return;
     const existing = workshopsMap[w.id];
     const nombreTaller = w.nombreTaller || w.email || `Taller (${w.id.substring(0, 6)})`;
     const nombreOwner = w.nombreOwner || existing?.nombreOwner || 'Propietario';
@@ -378,10 +415,62 @@ export async function getAllWorkshops(): Promise<Workshop[]> {
     } as Workshop;
   };
 
-  // 1. Fetch from Firestore "workshops" collection
+  // 1. FIRST: Load local backups so data is available instantly
+  try {
+    const registryStr = localStorage.getItem('mitaller_workshops_registry');
+    if (registryStr) {
+      const registry = JSON.parse(registryStr) as Workshop[];
+      if (Array.isArray(registry)) {
+        registry.forEach((w) => {
+          if (w && w.id) addOrMergeWorkshop(w);
+        });
+      }
+    }
+  } catch (e) {}
+
+  try {
+    const localProfileStr = localStorage.getItem('mitaller_workshop_profile');
+    if (localProfileStr) {
+      const localW = JSON.parse(localProfileStr) as Workshop;
+      if (localW && localW.id) {
+        addOrMergeWorkshop(localW);
+      }
+    }
+  } catch (e) {}
+
+  // Only include primary fallback workshop Dakar if not present in registry/local storage
+  if (!workshopsMap['dakar-main-workshop'] && !workshopsMap['mecanicadakar@gmail.com']) {
+    let dakarSub: any = {
+      plan: 'trial',
+      status: 'trial',
+      trialEndsAt: new Date().toISOString(),
+      subscriptionEndsAt: new Date().toISOString(),
+      maxWorkOrders: 50,
+    };
+    try {
+      const dakarCached = localStorage.getItem('mitaller_dakar-main-workshop_workshop');
+      if (dakarCached) {
+        const parsed = JSON.parse(dakarCached);
+        if (parsed.subscription) dakarSub = parsed.subscription;
+      }
+    } catch (e) {}
+
+    addOrMergeWorkshop({
+      id: 'dakar-main-workshop',
+      nombreTaller: 'Mecánica Dakar',
+      nombreOwner: 'Mecánica Dakar',
+      email: 'mecanicadakar@gmail.com',
+      telefono: '+54 9 11 4522-8901',
+      direccion: 'Av. Libertador 4500, CABA',
+      createdAt: new Date().toISOString(),
+      subscription: dakarSub,
+    });
+  }
+
+  // 2. Fetch from Firestore "workshops" collection with a 2.5s timeout
   try {
     const ref = collection(db, 'workshops');
-    const snapshot = await getDocs(ref);
+    const snapshot = await fetchWithTimeout(getDocs(ref), 2500);
     snapshot.docs.forEach((docSnap) => {
       const data = docSnap.data();
       addOrMergeWorkshop({
@@ -397,10 +486,10 @@ export async function getAllWorkshops(): Promise<Workshop[]> {
       });
     });
   } catch (error) {
-    console.warn('Error fetching workshops collection from Firestore:', error);
+    console.warn('Timeout or error fetching workshops collection from Firestore:', error);
   }
 
-  // 2. Supplement from used licenses in Firestore & Local storage
+  // 3. Supplement from used licenses in Firestore & Local storage
   try {
     const licenses = await getAllLicenseCodesFromFirestore();
     licenses.forEach((lic) => {
@@ -426,29 +515,6 @@ export async function getAllWorkshops(): Promise<Workshop[]> {
     console.warn('Error merging workshops from licenses:', err);
   }
 
-  // 3. Supplement from localStorage backups
-  try {
-    const localProfileStr = localStorage.getItem('mitaller_workshop_profile');
-    if (localProfileStr) {
-      const localW = JSON.parse(localProfileStr) as Workshop;
-      if (localW && localW.id) {
-        addOrMergeWorkshop(localW);
-      }
-    }
-  } catch (e) {}
-
-  try {
-    const registryStr = localStorage.getItem('mitaller_workshops_registry');
-    if (registryStr) {
-      const registry = JSON.parse(registryStr) as Workshop[];
-      if (Array.isArray(registry)) {
-        registry.forEach((w) => {
-          if (w && w.id) addOrMergeWorkshop(w);
-        });
-      }
-    }
-  } catch (e) {}
-
   return Object.values(workshopsMap);
 }
 
@@ -464,11 +530,13 @@ export async function adminUpdateWorkshopSubscription(
     const docRef = doc(db, 'workshops', tallerId);
     let existingData: Partial<Workshop> = {};
     try {
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
+      const snap = await fetchWithTimeout(getDoc(docRef), 1500);
+      if (snap && snap.exists()) {
         existingData = snap.data() as Workshop;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Could not fetch existing workshop before update:', e);
+    }
 
     const now = new Date();
     const subEnds = new Date();
@@ -489,6 +557,7 @@ export async function adminUpdateWorkshopSubscription(
       },
     };
 
+    // Save to local storage backups first
     try {
       const backupListStr = localStorage.getItem('mitaller_workshops_registry');
       const backupList: Workshop[] = backupListStr ? JSON.parse(backupListStr) : [];
@@ -499,11 +568,27 @@ export async function adminUpdateWorkshopSubscription(
         backupList.push(updatedData as Workshop);
       }
       localStorage.setItem('mitaller_workshops_registry', JSON.stringify(backupList));
+      localStorage.setItem(`mitaller_${tallerId}_workshop`, JSON.stringify(updatedData));
+
+      const activeProfileStr = localStorage.getItem('mitaller_workshop_profile');
+      if (activeProfileStr) {
+        try {
+          const activeProfile = JSON.parse(activeProfileStr);
+          if (activeProfile.id === tallerId || (activeProfile.email && activeProfile.email === updatedData.email)) {
+            localStorage.setItem('mitaller_workshop_profile', JSON.stringify({ ...activeProfile, ...updatedData }));
+          }
+        } catch (e) {}
+      }
     } catch (e) {}
 
-    await setDoc(docRef, updatedData, { merge: true });
+    // Save to Firestore with a timeout so it never blocks or hangs
+    try {
+      await fetchWithTimeout(setDoc(docRef, updatedData, { merge: true }), 2000);
+    } catch (err) {
+      console.warn('Could not update workshop subscription in Firestore (timeout or offline):', err);
+    }
   } catch (err) {
-    console.warn('Could not update workshop subscription in Firestore:', err);
+    console.warn('General error updating workshop subscription:', err);
   }
 }
 
@@ -517,6 +602,8 @@ export interface LicenseCodeDoc {
   usedByTallerName?: string;
   usedAt?: string;
   createdAt: string;
+  assignedEmail?: string;
+  assignedToName?: string;
 }
 
 const LOCAL_LICENSES_KEY = 'mitaller_created_licenses';
@@ -543,7 +630,9 @@ function saveLocalLicenseBackup(lic: LicenseCodeDoc) {
 export async function createLicenseCodeInFirestore(
   code: string,
   plan: 'pro' | 'basico' = 'pro',
-  days: number = 30
+  days: number = 30,
+  assignedEmail?: string,
+  assignedToName?: string
 ): Promise<void> {
   const cleanCode = code.trim().toUpperCase();
   const data: LicenseCodeDoc = {
@@ -552,6 +641,8 @@ export async function createLicenseCodeInFirestore(
     days,
     used: false,
     createdAt: new Date().toISOString(),
+    assignedEmail: assignedEmail ? assignedEmail.trim().toLowerCase() : undefined,
+    assignedToName: assignedToName ? assignedToName.trim() : undefined,
   };
 
   // 1. Save locally as immediate backup
@@ -560,7 +651,7 @@ export async function createLicenseCodeInFirestore(
   // 2. Try saving to Firestore
   try {
     const docRef = doc(db, 'licenses', cleanCode);
-    await setDoc(docRef, data, { merge: true });
+    await fetchWithTimeout(setDoc(docRef, data, { merge: true }), 2000);
   } catch (err) {
     console.warn('Error writing license to Firestore, saved to local storage backup:', err);
   }
@@ -570,7 +661,7 @@ export async function getAllLicenseCodesFromFirestore(): Promise<LicenseCodeDoc[
   const localList = getLocalLicensesBackup();
   try {
     const ref = collection(db, 'licenses');
-    const snapshot = await getDocs(ref);
+    const snapshot = await fetchWithTimeout(getDocs(ref), 2500);
     const remoteList = snapshot.docs.map((d) => d.data() as LicenseCodeDoc);
 
     // Merge remote and local (remote takes precedence, local fills any unsynced)
@@ -598,10 +689,12 @@ export async function validateAndApplyLicenseCodeInFirestore(
     return { success: false, message: 'Ingresa un código válido.' };
   }
 
-  // Master codes check
-  if (cleanCode === 'TALLERYA2026' || cleanCode === 'PRO' || cleanCode === 'MEKANICADAKAR') {
-    await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', 365, tallerName, tallerEmail);
-    return { success: true, message: '¡Licencia Maestra activada! Plan PRO de 1 año aplicado.' };
+  // Master & Annual codes check
+  const isAnnualCode = cleanCode.includes('ANUAL') || cleanCode.includes('365') || cleanCode.includes('YEAR') || cleanCode.includes('1ANIO');
+  if (cleanCode === 'TALLERYA2026' || cleanCode === 'PRO' || cleanCode === 'MEKANICADAKAR' || isAnnualCode) {
+    const days = isAnnualCode ? 365 : 365;
+    await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', days, tallerName, tallerEmail);
+    return { success: true, message: `¡Licencia Activada! Plan PRO de 1 año (${days} días) aplicado con éxito.` };
   }
 
   try {
@@ -666,12 +759,13 @@ export async function validateAndApplyLicenseCodeInFirestore(
       };
     }
 
-    // Fallback if code starts with PRO- or TALLERYA-
-    if (cleanCode.startsWith('PRO-') || cleanCode.startsWith('TALLERYA-')) {
+    // Fallback if code starts with PRO-, TALLERYA-, LICENCIA-
+    if (cleanCode.startsWith('PRO-') || cleanCode.startsWith('TALLERYA-') || cleanCode.startsWith('LICENCIA-')) {
+      const days = cleanCode.includes('365') || cleanCode.includes('ANUAL') || cleanCode.includes('YEAR') ? 365 : 365;
       const fallbackLic: LicenseCodeDoc = {
         code: cleanCode,
         plan: 'pro',
-        days: 30,
+        days: days,
         used: true,
         usedByTallerId: tallerId,
         usedByTallerName: tallerName,
@@ -684,8 +778,8 @@ export async function validateAndApplyLicenseCodeInFirestore(
         await setDoc(licenseRef, fallbackLic, { merge: true });
       } catch (e) {}
 
-      await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', 30, tallerName, tallerEmail);
-      return { success: true, message: '¡Código de Licencia PRO validado! 30 días de Plan PRO activados.' };
+      await adminUpdateWorkshopSubscription(tallerId, 'pro', 'active', days, tallerName, tallerEmail);
+      return { success: true, message: `¡Código de Licencia PRO validado! ${days} días de Plan PRO activados.` };
     }
 
     return { success: false, message: 'Código de licencia no encontrado o inválido. Contacta a soporte por WhatsApp.' };

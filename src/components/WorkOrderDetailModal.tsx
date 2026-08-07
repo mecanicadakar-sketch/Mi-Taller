@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { WorkOrder, OrderStatus, InventoryItem, Mechanic } from '../types/tallerya';
-import { Wrench, Car, User, Phone, CheckCircle2, Clock, Plus, Trash2, Save, Printer, Users, CheckSquare, Sparkles } from 'lucide-react';
+import { Wrench, Car, User, Phone, CheckCircle2, Clock, Plus, Trash2, Save, Printer, Users, CheckSquare, Sparkles, Package } from 'lucide-react';
 import { resolveProximoKm } from '../services/whatsappReminderService';
 
 interface WorkOrderDetailModalProps {
@@ -31,6 +31,21 @@ export function WorkOrderDetailModal({
   onDeleteOrder,
   onOpenMechanicsModal,
 }: WorkOrderDetailModalProps) {
+  // Client state
+  const [clienteNombre, setClienteNombre] = useState(order.clienteNombre || '');
+  const [clienteTelefono, setClienteTelefono] = useState(order.clienteTelefono || '');
+
+  // Vehicle state
+  const [patente, setPatente] = useState(order.vehiculo?.patente || '');
+  const [marca, setMarca] = useState(order.vehiculo?.marca || '');
+  const [modelo, setModelo] = useState(order.vehiculo?.modelo || '');
+  const [anio, setAnio] = useState(order.vehiculo?.anio || new Date().getFullYear());
+  const [kilometraje, setKilometraje] = useState(order.vehiculo?.kilometraje || 0);
+  const [nivelCombustible, setNivelCombustible] = useState(order.vehiculo?.nivelCombustible || '1/2');
+  const [observacionesVisuales, setObservacionesVisuales] = useState(order.vehiculo?.observacionesVisuales || '');
+
+  // Order state
+  const [fallaReportada, setFallaReportada] = useState(order.fallaReportada || '');
   const [estado, setEstado] = useState<OrderStatus>(order.estado);
   const [diagnostico, setDiagnostico] = useState(order.diagnosticoTecnico || '');
   const [mecanico, setMecanico] = useState(order.mecanicoAsignado || 'Mecanico Juan Pérez');
@@ -77,22 +92,110 @@ export function WorkOrderDetailModal({
     setServicios(servicios.filter((s) => s.id !== id));
   };
 
+  const handleUpdateServiceDesc = (id: string, desc: string) => {
+    setServicios(prev => prev.map(s => s.id === id ? { ...s, descripcion: desc } : s));
+  };
+
+  const handleUpdateServiceCost = (id: string, cost: number) => {
+    setServicios(prev => prev.map(s => s.id === id ? { ...s, costoManoObra: cost } : s));
+  };
+
+  const handleRemovePartFromService = (serviceId: string, partIndex: number) => {
+    setServicios(prev => prev.map(s => {
+      if (s.id !== serviceId) return s;
+      const updatedParts = s.repuestosUtilizados.filter((_, idx) => idx !== partIndex);
+      return { ...s, repuestosUtilizados: updatedParts };
+    }));
+  };
+
+  // Direct Repuestos Form State (below Diagnóstico Técnico)
+  const [repuestoNombre, setRepuestoNombre] = useState('');
+  const [repuestoPrecio, setRepuestoPrecio] = useState<number | ''>('');
+  const [repuestoCantidad, setRepuestoCantidad] = useState<number>(1);
+  const [selectedInventoryPartId, setSelectedInventoryPartId] = useState('');
+  const [targetServiceId, setTargetServiceId] = useState('AUTO');
+
+  const handleSelectInventoryRepuesto = (partId: string) => {
+    setSelectedInventoryPartId(partId);
+    if (!partId) return;
+    const item = inventory.find((i) => i.id === partId);
+    if (item) {
+      setRepuestoNombre(item.nombre);
+      setRepuestoPrecio(item.precioVenta);
+    }
+  };
+
+  const handleAddRepuestoDirect = () => {
+    if (!repuestoNombre.trim()) return;
+    const price = typeof repuestoPrecio === 'number' ? repuestoPrecio : 0;
+    const qty = Number(repuestoCantidad) || 1;
+
+    const newRepuesto = {
+      inventoryItemId: selectedInventoryPartId || undefined,
+      repuestoId: selectedInventoryPartId || 'r_' + Date.now(),
+      nombreRepuesto: repuestoNombre.trim(),
+      cantidad: qty,
+      precioUnitario: price,
+    };
+
+    if (servicios.length === 0 || targetServiceId === 'NEW') {
+      const newServ = {
+        id: 's_' + Date.now(),
+        descripcion: 'Repuestos y Insumos',
+        costoManoObra: 0,
+        repuestosUtilizados: [newRepuesto],
+      };
+      setServicios((prev) => [...prev, newServ]);
+    } else {
+      setServicios((prev) => {
+        const updated = [...prev];
+        let targetIdx = updated.length - 1;
+        if (targetServiceId !== 'AUTO') {
+          const foundIdx = updated.findIndex((s) => s.id === targetServiceId);
+          if (foundIdx !== -1) targetIdx = foundIdx;
+        }
+        updated[targetIdx] = {
+          ...updated[targetIdx],
+          repuestosUtilizados: [...(updated[targetIdx].repuestosUtilizados || []), newRepuesto],
+        };
+        return updated;
+      });
+    }
+
+    setRepuestoNombre('');
+    setRepuestoPrecio('');
+    setRepuestoCantidad(1);
+    setSelectedInventoryPartId('');
+  };
+
+  const totalManoObra = servicios.reduce((acc, s) => acc + (s.costoManoObra || 0), 0);
+  const totalRepuestos = servicios.reduce((acc, s) => {
+    return acc + (s.repuestosUtilizados || []).reduce((pSum, p) => pSum + (p.cantidad || 0) * (p.precioUnitario || 0), 0);
+  }, 0);
+
   const calculateTotal = () => {
-    return servicios.reduce((total, s) => {
-      const partsTotal = s.repuestosUtilizados.reduce(
-        (pSum, p) => pSum + p.cantidad * p.precioUnitario,
-        0
-      );
-      return total + s.costoManoObra + partsTotal;
-    }, 0);
+    return totalManoObra + totalRepuestos;
   };
 
   const handleSaveChanges = () => {
     const totalEst = calculateTotal();
     const updated: WorkOrder = {
       ...order,
+      clienteNombre: clienteNombre.trim(),
+      clienteTelefono: clienteTelefono.trim(),
+      vehiculo: {
+        ...order.vehiculo,
+        patente: patente.toUpperCase().trim(),
+        marca: marca.trim(),
+        modelo: modelo.trim(),
+        anio: Number(anio) || new Date().getFullYear(),
+        kilometraje: Number(kilometraje) || 0,
+        nivelCombustible,
+        observacionesVisuales: observacionesVisuales.trim(),
+      },
+      fallaReportada: fallaReportada.trim(),
       estado,
-      diagnosticoTecnico: diagnostico,
+      diagnosticoTecnico: diagnostico.trim(),
       mecanicoAsignado: mecanico,
       servicios,
       totalEstimado: totalEst,
@@ -103,15 +206,15 @@ export function WorkOrderDetailModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-3xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200 my-8">
+    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-white rounded-2xl max-w-3xl w-full flex flex-col max-h-[92vh] shadow-2xl border border-slate-200 overflow-hidden">
         {/* Header Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4 sm:p-5 shrink-0 bg-white">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="font-extrabold text-slate-900 text-xl">{order.numeroOrden}</span>
               <span className="px-2.5 py-1 bg-slate-900 text-amber-400 font-mono font-bold text-xs rounded-lg">
-                {order.vehiculo.patente}
+                {patente || order.vehiculo.patente}
               </span>
             </div>
             <p className="text-xs text-slate-500">Ingresado el: {new Date(order.fechaIngreso).toLocaleString('es-ES')}</p>
@@ -132,38 +235,53 @@ export function WorkOrderDetailModal({
 
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 text-xl font-bold px-2"
+              className="text-slate-400 hover:text-slate-600 text-2xl font-bold leading-none p-1"
             >
               &times;
             </button>
           </div>
         </div>
 
-        {/* Info Grid: Client & Vehicle */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
-          <div className="space-y-1">
-            <p className="font-bold text-slate-400 uppercase text-[10px] tracking-wider">Vehículo</p>
-            <p className="font-bold text-slate-900 text-sm">
-              {order.vehiculo.marca} {order.vehiculo.modelo} ({order.vehiculo.anio})
-            </p>
-            <p className="text-slate-600">KM: {order.vehiculo.kilometraje.toLocaleString()} km • Combustible: {order.vehiculo.nivelCombustible}</p>
-            {order.vehiculo.observacionesVisuales && (
-              <p className="text-amber-700 bg-amber-50 p-1.5 rounded border border-amber-200 text-[11px]">
-                Obs: {order.vehiculo.observacionesVisuales}
-              </p>
-            )}
-          </div>
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
 
-          <div className="space-y-1">
-            <p className="font-bold text-slate-400 uppercase text-[10px] tracking-wider">Propietario / Cliente</p>
-            <p className="font-bold text-slate-900 text-sm">{order.clienteNombre}</p>
-            <p className="text-slate-600 flex items-center gap-1">
-              <Phone className="w-3.5 h-3.5 text-slate-400" />
-              {order.clienteTelefono}
+        {/* Editable Client & Vehicle Section */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+          {/* Client Details */}
+          <div className="space-y-2.5">
+            <p className="font-bold text-slate-400 uppercase text-[10px] tracking-wider flex items-center gap-1">
+              <User className="w-3.5 h-3.5 text-amber-500" />
+              Propietario / Cliente (Editable)
             </p>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-600">Nombre del Cliente</label>
+              <input
+                type="text"
+                value={clienteNombre}
+                onChange={(e) => setClienteNombre(e.target.value)}
+                placeholder="Nombre del cliente"
+                className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg font-semibold text-slate-900"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                <Phone className="w-3 h-3 text-slate-400" />
+                Teléfono / WhatsApp
+              </label>
+              <input
+                type="text"
+                value={clienteTelefono}
+                onChange={(e) => setClienteTelefono(e.target.value)}
+                placeholder="Ej. +54 9 11 1234-5678"
+                className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg text-slate-900"
+              />
+            </div>
+
             <div className="pt-1">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-semibold text-slate-500">Mecánico Asignado:</label>
+                <label className="text-[11px] font-semibold text-slate-600">Mecánico Asignado:</label>
                 {onOpenMechanicsModal && (
                   <button
                     type="button"
@@ -187,9 +305,8 @@ export function WorkOrderDetailModal({
                     setMecanico(e.target.value);
                   }
                 }}
-                className="w-full mt-0.5 p-1 bg-white border border-slate-200 rounded text-xs font-semibold text-slate-900"
+                className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg font-semibold text-slate-900"
               >
-                {/* Ensure current assigned mechanic is always an option even if custom */}
                 {mecanico && !mechanics.some((m) => m.nombre === mecanico) && (
                   <option value={mecanico}>{mecanico}</option>
                 )}
@@ -214,6 +331,93 @@ export function WorkOrderDetailModal({
               </select>
             </div>
           </div>
+
+          {/* Vehicle Details */}
+          <div className="space-y-2.5">
+            <p className="font-bold text-slate-400 uppercase text-[10px] tracking-wider flex items-center gap-1">
+              <Car className="w-3.5 h-3.5 text-amber-500" />
+              Datos del Vehículo (Editable)
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600">Patente</label>
+                <input
+                  type="text"
+                  value={patente}
+                  onChange={(e) => setPatente(e.target.value)}
+                  className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg font-mono font-bold uppercase text-slate-900"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600">Marca</label>
+                <input
+                  type="text"
+                  value={marca}
+                  onChange={(e) => setMarca(e.target.value)}
+                  className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg text-slate-900"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600">Modelo</label>
+                <input
+                  type="text"
+                  value={modelo}
+                  onChange={(e) => setModelo(e.target.value)}
+                  className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg text-slate-900"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600">Año</label>
+                <input
+                  type="number"
+                  value={anio}
+                  onChange={(e) => setAnio(Number(e.target.value))}
+                  className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg text-slate-900"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600">Kilometraje (KM)</label>
+                <input
+                  type="number"
+                  value={kilometraje}
+                  onChange={(e) => setKilometraje(Number(e.target.value))}
+                  className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg text-slate-900"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600">Combustible</label>
+                <select
+                  value={nivelCombustible}
+                  onChange={(e) => setNivelCombustible(e.target.value)}
+                  className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg text-slate-900"
+                >
+                  <option value="Reserva">Reserva</option>
+                  <option value="1/4">1/4</option>
+                  <option value="1/2">1/2</option>
+                  <option value="3/4">3/4</option>
+                  <option value="Lleno">Lleno</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-600">Observaciones Visuales / Detalles</label>
+              <input
+                type="text"
+                value={observacionesVisuales}
+                onChange={(e) => setObservacionesVisuales(e.target.value)}
+                placeholder="Ej. Rayón en puerta izquierda, parabrisas fisurado"
+                className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg text-slate-900"
+              />
+            </div>
+          </div>
         </div>
 
         {/* Maintenance Checklist Card (If present) */}
@@ -227,7 +431,7 @@ export function WorkOrderDetailModal({
               {order.mantenimiento && (
                 <span className="bg-emerald-600 text-white font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
                   Próximo Service: {resolveProximoKm(
-                    order.vehiculo?.kilometraje || 0,
+                    kilometraje || 0,
                     order.mantenimiento.proximoKmService,
                     order.mantenimiento.intervaloKm
                   ).toLocaleString()} km
@@ -294,9 +498,13 @@ export function WorkOrderDetailModal({
         <div className="space-y-3">
           <div>
             <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Falla Reportada por Cliente</label>
-            <p className="text-xs text-slate-800 bg-slate-100 p-3 rounded-xl border border-slate-200 mt-1 italic">
-              "{order.fallaReportada}"
-            </p>
+            <textarea
+              rows={2}
+              value={fallaReportada}
+              onChange={(e) => setFallaReportada(e.target.value)}
+              placeholder="Falla o problema reportado..."
+              className="w-full mt-1 p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+            />
           </div>
 
           <div>
@@ -311,6 +519,135 @@ export function WorkOrderDetailModal({
               className="w-full mt-1 p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
             />
           </div>
+
+          {/* Direct Repuestos / Insumos Section (below Diagnóstico Técnico) */}
+          <div className="bg-amber-50/40 border border-amber-200/80 rounded-xl p-3.5 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-amber-500" />
+                Agregar Repuestos / Materiales
+              </label>
+            </div>
+
+            {/* List all currently added repuestos across services */}
+            {servicios.some((s) => s.repuestosUtilizados.length > 0) && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Repuestos cargados en esta orden:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {servicios.flatMap((s) =>
+                    s.repuestosUtilizados.map((p, idx) => (
+                      <span
+                        key={`${s.id}-${idx}`}
+                        className="bg-white border border-amber-300 text-slate-900 font-semibold px-2.5 py-1 rounded-lg text-xs flex items-center gap-1.5 shadow-2xs"
+                      >
+                        <span className="font-bold">{p.nombreRepuesto}</span>
+                        <span className="text-slate-500 text-[11px]">
+                          ({p.cantidad}x ${p.precioUnitario.toLocaleString('es-AR')})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePartFromService(s.id, idx)}
+                          className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded p-0.5 ml-1 transition-colors"
+                          title="Quitar repuesto"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Form to add a new repuesto */}
+            <div className="space-y-2 pt-1 border-t border-amber-200/50">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
+                {/* Inventory dropdown */}
+                <div className="sm:col-span-5">
+                  <select
+                    value={selectedInventoryPartId}
+                    onChange={(e) => handleSelectInventoryRepuesto(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                  >
+                    <option value="">-- Buscar en Inventario o Escribir Manual --</option>
+                    {inventory.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.nombre} (Stock: {item.stockActual}) - ${item.precioVenta.toLocaleString('es-AR')}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Custom Name */}
+                <div className="sm:col-span-4">
+                  <input
+                    type="text"
+                    placeholder="Nombre del repuesto / insumo"
+                    value={repuestoNombre}
+                    onChange={(e) => setRepuestoNombre(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-slate-900"
+                  />
+                </div>
+
+                {/* Price */}
+                <div className="sm:col-span-3">
+                  <input
+                    type="number"
+                    placeholder="Precio ($)"
+                    value={repuestoPrecio}
+                    onChange={(e) => setRepuestoPrecio(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-slate-600 font-semibold">Cant:</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={repuestoCantidad}
+                      onChange={(e) => setRepuestoCantidad(Math.max(1, Number(e.target.value)))}
+                      className="w-16 p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-center text-slate-900"
+                    />
+                  </div>
+
+                  {servicios.length > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-slate-600 font-semibold">Asignar a:</label>
+                      <select
+                        value={targetServiceId}
+                        onChange={(e) => setTargetServiceId(e.target.value)}
+                        className="p-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 font-medium"
+                      >
+                        <option value="AUTO">Última tarea / Tarea actual</option>
+                        {servicios.map((s, idx) => (
+                          <option key={s.id} value={s.id}>
+                            {idx + 1}. {s.descripcion || 'Sin título'}
+                          </option>
+                        ))}
+                        <option value="NEW">+ Crear nueva línea "Repuestos"</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddRepuestoDirect}
+                  disabled={!repuestoNombre.trim()}
+                  className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold rounded-lg text-xs transition-colors flex items-center gap-1 shadow-2xs shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>Agregar Repuesto</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Services & Repuestos List */}
@@ -324,27 +661,54 @@ export function WorkOrderDetailModal({
             {servicios.map((serv) => (
               <div
                 key={serv.id}
-                className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs"
+                className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs"
               >
-                <div className="space-y-1">
-                  <p className="font-bold text-slate-900">{serv.descripcion}</p>
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                    <span>Mano de obra: ${serv.costoManoObra.toLocaleString('es-AR')}</span>
-                    {serv.repuestosUtilizados.map((r, i) => (
-                      <span key={i} className="bg-amber-100 text-amber-900 font-semibold px-2 py-0.5 rounded">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={serv.descripcion}
+                    onChange={(e) => handleUpdateServiceDesc(serv.id, e.target.value)}
+                    placeholder="Descripción de tarea / servicio"
+                    className="flex-1 p-1.5 bg-white border border-slate-200 rounded-lg font-bold text-slate-900 text-xs"
+                  />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-slate-500 text-[11px]">Mano obra $:</span>
+                    <input
+                      type="number"
+                      value={serv.costoManoObra}
+                      onChange={(e) => handleUpdateServiceCost(serv.id, Number(e.target.value))}
+                      className="w-24 p-1.5 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs font-bold"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveService(serv.id)}
+                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
+                    title="Eliminar esta línea"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {(serv.repuestosUtilizados || []).length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 pl-1">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase">Repuestos:</span>
+                    {(serv.repuestosUtilizados || []).map((r, i) => (
+                      <span key={i} className="bg-amber-100 text-amber-900 font-semibold px-2 py-0.5 rounded text-[11px] flex items-center gap-1">
                         {r.nombreRepuesto} (${r.precioUnitario.toLocaleString('es-AR')})
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePartFromService(serv.id, i)}
+                          className="hover:text-rose-700 ml-0.5 text-xs font-bold"
+                          title="Quitar repuesto"
+                        >
+                          &times;
+                        </button>
                       </span>
                     ))}
                   </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleRemoveService(serv.id)}
-                  className="p-1.5 text-rose-500 hover:text-rose-700"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                )}
               </div>
             ))}
           </div>
@@ -397,47 +761,64 @@ export function WorkOrderDetailModal({
           </div>
         </div>
 
-        {/* Footer Bar */}
-        <div className="flex flex-wrap items-center justify-between border-t border-slate-200 pt-4 gap-4">
-          <div className="flex items-center gap-4">
+        </div>
+
+        {/* Cost Summary & Fixed Footer Bar */}
+        <div className="shrink-0 space-y-3 border-t border-slate-200 p-4 sm:p-5 bg-white">
+          <div className="bg-slate-900 text-white p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-md">
             <div>
-              <span className="text-[10px] text-slate-400 font-bold uppercase">Total Estimado</span>
-              <p className="text-xl font-extrabold text-slate-900">${calculateTotal().toLocaleString('es-AR')}</p>
+              <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block">
+                Resumen de Costos y Suma General
+              </span>
+              <div className="flex flex-wrap items-center gap-3 text-xs mt-1 text-slate-300 font-medium">
+                <span>Mano de obra: <strong className="text-white">${totalManoObra.toLocaleString('es-AR')}</strong></span>
+                <span>•</span>
+                <span>Repuestos / Insumos: <strong className="text-white">${totalRepuestos.toLocaleString('es-AR')}</strong></span>
+              </div>
             </div>
-            {onDeleteOrder && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm(`¿Estás seguro de eliminar la Orden de Trabajo #${order.id}? esta acción no se puede deshacer.`)) {
-                    onDeleteOrder(order.id);
-                    onClose();
-                  }
-                }}
-                className="px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors flex items-center gap-1.5"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Eliminar Orden
-              </button>
-            )}
+            <div className="text-right">
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">TOTAL GENERAL</span>
+              <span className="text-2xl font-extrabold text-amber-400">${calculateTotal().toLocaleString('es-AR')}</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
-            >
-              Cancelar
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+            <div className="flex items-center gap-4">
+              {onDeleteOrder && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`¿Estás seguro de eliminar la Orden de Trabajo #${order.id}? esta acción no se puede deshacer.`)) {
+                      onDeleteOrder(order.id);
+                      onClose();
+                    }
+                  }}
+                  className="px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Eliminar Orden
+                </button>
+              )}
+            </div>
 
-            <button
-              type="button"
-              onClick={handleSaveChanges}
-              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5"
-            >
-              <Save className="w-4 h-4" />
-              Guardar Cambios
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveChanges}
+                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5"
+              >
+                <Save className="w-4 h-4" />
+                Guardar Cambios
+              </button>
+            </div>
           </div>
         </div>
       </div>

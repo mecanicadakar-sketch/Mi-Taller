@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { WorkOrder, OrderStatus } from '../types/tallerya';
-import { Plus, Search, Filter, Car, LayoutGrid, List, ChevronRight, User, Wrench, Clock, CheckCircle2 } from 'lucide-react';
+import { Plus, Search, Filter, Car, LayoutGrid, List, ChevronRight, User, Wrench, Clock, CheckCircle2, Edit3, Trash2 } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 
 interface WorkOrdersViewProps {
@@ -8,6 +8,7 @@ interface WorkOrdersViewProps {
   onSelectOrder: (order: WorkOrder) => void;
   onNewWorkOrder: () => void;
   onUpdateStatus: (orderId: string, newStatus: OrderStatus) => void;
+  onDeleteOrder?: (orderId: string) => void;
   searchTerm?: string;
   setSearchTerm?: (term: string) => void;
 }
@@ -35,6 +36,7 @@ export function WorkOrdersView({
   onSelectOrder,
   onNewWorkOrder,
   onUpdateStatus,
+  onDeleteOrder,
   searchTerm = '',
   setSearchTerm,
 }: WorkOrdersViewProps) {
@@ -212,13 +214,42 @@ export function WorkOrdersView({
                         </span>
                       </div>
 
-                      {/* Quick Status Change */}
-                      <div className="pt-1">
+                      {/* Quick Actions & Status Change */}
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectOrder(order);
+                            }}
+                            className="p-1.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                            title="Editar / Ver detalle de la órden"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          {onDeleteOrder && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`¿Estás seguro de eliminar la órden ${order.numeroOrden}?`)) {
+                                  onDeleteOrder(order.id);
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              title="Eliminar órden de trabajo"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+
                         <select
                           value={order.estado}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => onUpdateStatus(order.id, e.target.value as OrderStatus)}
-                          className="w-full text-[10px] bg-slate-100 border border-slate-200 rounded-md py-1 px-1.5 text-slate-700 font-medium focus:outline-none"
+                          className="text-[10px] bg-slate-100 border border-slate-200 rounded-md py-1 px-1.5 text-slate-700 font-medium focus:outline-none"
                         >
                           {STATUS_COLUMNS.map((st) => (
                             <option key={st} value={st}>
@@ -291,15 +322,33 @@ export function WorkOrdersView({
                         ${order.totalEstimado?.toLocaleString('es-AR')}
                       </td>
                       <td className="p-3.5 text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectOrder(order);
-                          }}
-                          className="px-2.5 py-1 bg-amber-500/10 text-amber-800 hover:bg-amber-500 hover:text-slate-950 font-bold rounded-lg transition-colors text-[11px]"
-                        >
-                          Ver detalle
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectOrder(order);
+                            }}
+                            className="px-2.5 py-1 bg-amber-500/10 text-amber-800 hover:bg-amber-500 hover:text-slate-950 font-bold rounded-lg transition-colors text-[11px] flex items-center gap-1"
+                            title="Editar órden"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            Editar
+                          </button>
+                          {onDeleteOrder && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`¿Estás seguro de eliminar la órden ${order.numeroOrden}?`)) {
+                                  onDeleteOrder(order.id);
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              title="Eliminar órden"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

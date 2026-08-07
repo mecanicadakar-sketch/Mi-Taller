@@ -297,24 +297,6 @@ export function Sidebar({
         )}
 
         <div className="pt-3 border-t border-slate-800 mt-3 space-y-2">
-          {onResetDemoData && (
-            <button
-              onClick={() => {
-                if (confirm('¿Deseas restablecer la app al modo de demostración limpio original? Se eliminarán los datos guardados localmente.')) {
-                  onResetDemoData();
-                }
-              }}
-              className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all"
-              title="Restablecer app a datos limpios de demostración"
-            >
-              <div className="flex items-center gap-2">
-                <RotateCcw className="w-4 h-4 text-amber-500" />
-                <span>Restablecer Datos Demo</span>
-              </div>
-              <span className="text-[10px] text-slate-500 font-mono">Reset</span>
-            </button>
-          )}
-
           <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Portal para Dueños de Vehículos
           </div>

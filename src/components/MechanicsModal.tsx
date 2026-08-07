@@ -5,6 +5,7 @@ import {
   UserX,
   Plus,
   Trash2,
+  Edit3,
   X,
   Wrench,
   Phone,
@@ -35,25 +36,43 @@ export function MechanicsModal({
   const [especialidad, setEspecialidad] = useState('');
   const [telefono, setTelefono] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [editingMechanic, setEditingMechanic] = useState<Mechanic | null>(null);
 
   if (!isOpen) return null;
+
+  const handleOpenAddForm = () => {
+    setEditingMechanic(null);
+    setNombre('');
+    setEspecialidad('');
+    setTelefono('');
+    setIsCreating(true);
+  };
+
+  const handleOpenEditForm = (m: Mechanic) => {
+    setEditingMechanic(m);
+    setNombre(m.nombre);
+    setEspecialidad(m.especialidad || '');
+    setTelefono(m.telefono || '');
+    setIsCreating(true);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) return;
 
-    const newMechanic: Mechanic = {
-      id: 'm_' + Date.now(),
+    const mechanicToSave: Mechanic = {
+      id: editingMechanic ? editingMechanic.id : 'm_' + Date.now(),
       nombre: nombre.trim(),
       especialidad: especialidad.trim() || 'Mecánica General',
       telefono: telefono.trim(),
-      activo: true,
+      activo: editingMechanic ? editingMechanic.activo : true,
     };
 
-    onAddMechanic(newMechanic);
+    onAddMechanic(mechanicToSave);
     setNombre('');
     setEspecialidad('');
     setTelefono('');
+    setEditingMechanic(null);
     setIsCreating(false);
   };
 
@@ -86,7 +105,7 @@ export function MechanicsModal({
           {/* Add Form Toggle */}
           {!isCreating ? (
             <button
-              onClick={() => setIsCreating(true)}
+              onClick={handleOpenAddForm}
               className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-sm transition-colors text-sm flex items-center justify-center gap-2"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
@@ -97,11 +116,14 @@ export function MechanicsModal({
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                   <UserCheck className="w-4 h-4 text-amber-500" />
-                  Nuevo Personal del Taller
+                  {editingMechanic ? 'Editar Mecánico' : 'Nuevo Personal del Taller'}
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setIsCreating(false)}
+                  onClick={() => {
+                    setIsCreating(false);
+                    setEditingMechanic(null);
+                  }}
                   className="text-xs text-slate-400 hover:text-slate-600"
                 >
                   Cancelar
@@ -223,6 +245,14 @@ export function MechanicsModal({
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handleOpenEditForm(m)}
+                        className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                        title="Editar datos del mecánico"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+
                       <button
                         onClick={() => onToggleStatus(m.id, m.activo)}
                         className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors border ${
