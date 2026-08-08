@@ -1,5 +1,5 @@
 import { WorkOrder, InventoryItem, OrderStatus } from '../types/tallerya';
-import { Wrench, Clock, CheckCircle2, AlertTriangle, ArrowRight, DollarSign, Car, Plus, AlertCircle, Search, FileSpreadsheet, MessageSquare } from 'lucide-react';
+import { Wrench, Clock, CheckCircle2, AlertTriangle, ArrowRight, DollarSign, Car, Plus, AlertCircle, Search, FileSpreadsheet, MessageSquare, RefreshCw } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 
 interface DashboardViewProps {
@@ -12,15 +12,16 @@ interface DashboardViewProps {
   onOpenWhatsAppReminders?: () => void;
   searchTerm?: string;
   setSearchTerm?: (term: string) => void;
+  isSyncing?: boolean;
 }
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; bg: string; text: string; border: string }> = {
   ingresado: { label: 'Ingresado', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-  diagnostico: { label: 'En Diagnóstico', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+  diagnostico: { label: 'Ingresado', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
   reparacion: { label: 'En Reparación', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200' },
-  repuestos: { label: 'Esperando Repuesto', bg: 'bg-orange-50', text: 'text-orange-800', border: 'border-orange-200' },
-  listo: { label: 'Listo para Entregar', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200' },
-  entregado: { label: 'Entregado / Cerrado', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' },
+  repuestos: { label: 'En Reparación', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200' },
+  listo: { label: 'Listo / Entregado', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200' },
+  entregado: { label: 'Listo / Entregado', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200' },
 };
 
 export function DashboardView({
@@ -33,6 +34,7 @@ export function DashboardView({
   onOpenWhatsAppReminders,
   searchTerm = '',
   setSearchTerm,
+  isSyncing = false,
 }: DashboardViewProps) {
   const q = searchTerm.trim();
 
@@ -208,7 +210,17 @@ export function DashboardView({
           <div className="space-y-3">
             {displayOrdersList.length === 0 ? (
               <div className="p-6 text-center text-slate-500 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                No se encontraron órdenes que coincidan con "<span className="font-semibold text-slate-800">{q}</span>".
+                {isSyncing ? (
+                  <div className="flex flex-col items-center gap-2 py-2">
+                    <RefreshCw className="w-5 h-5 text-amber-500 animate-spin" />
+                    <span className="font-bold text-slate-800">Sincronizando con Firebase...</span>
+                    <span className="text-slate-500 text-[11px]">Cargando órdenes de trabajo desde la nube. Por favor aguarde.</span>
+                  </div>
+                ) : q ? (
+                  <span>No se encontraron órdenes que coincidan con "<strong className="text-slate-800">{q}</strong>".</span>
+                ) : (
+                  <span>No hay órdenes de trabajo activas en este momento.</span>
+                )}
               </div>
             ) : (
               displayOrdersList.map((order) => {

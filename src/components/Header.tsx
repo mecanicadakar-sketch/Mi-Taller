@@ -14,7 +14,8 @@ import {
   Users,
   Package,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  RefreshCw
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { Workshop, WorkOrder, Client, InventoryItem, Budget } from '../types/tallerya';
@@ -40,6 +41,7 @@ interface HeaderProps {
   budgets?: Budget[];
   onSelectOrder?: (order: WorkOrder) => void;
   onNavigateTab?: (tab: string) => void;
+  isSyncing?: boolean;
 }
 
 export function Header({
@@ -62,6 +64,7 @@ export function Header({
   budgets = [],
   onSelectOrder,
   onNavigateTab,
+  isSyncing = false,
 }: HeaderProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -367,17 +370,15 @@ export function Header({
 
       {/* Header Action Controls */}
       <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Google Drive Import Button */}
-        {onOpenGoogleSheetsModal && (
-          <button
-            onClick={onOpenGoogleSheetsModal}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 shrink-0"
-            title="Importar base de datos desde Google Drive / Google Sheets"
+        {/* Syncing Indicator Badge */}
+        {isSyncing && (
+          <div
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50/90 border border-blue-300 text-blue-900 font-bold text-[11px] sm:text-xs rounded-xl shadow-2xs shrink-0 animate-pulse"
+            title="Sincronizando datos con Firebase..."
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-200 shrink-0" />
-            <span className="hidden sm:inline">Importar Google Drive</span>
-            <span className="sm:hidden font-bold">Drive</span>
-          </button>
+            <RefreshCw className="w-3.5 h-3.5 text-blue-600 animate-spin shrink-0" />
+            <span className="hidden sm:inline">Sincronizando...</span>
+          </div>
         )}
 
         {/* Subscription Button (Visible on Mobile & Desktop) */}

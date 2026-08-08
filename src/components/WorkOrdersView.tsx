@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { WorkOrder, OrderStatus } from '../types/tallerya';
-import { Plus, Search, Filter, Car, LayoutGrid, List, ChevronRight, User, Wrench, Clock, CheckCircle2, Edit3, Trash2 } from 'lucide-react';
+import { Plus, Search, Filter, Car, LayoutGrid, List, ChevronRight, User, Wrench, Clock, CheckCircle2, Edit3, Trash2, RefreshCw } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 
 interface WorkOrdersViewProps {
@@ -11,23 +11,21 @@ interface WorkOrdersViewProps {
   onDeleteOrder?: (orderId: string) => void;
   searchTerm?: string;
   setSearchTerm?: (term: string) => void;
+  isSyncing?: boolean;
 }
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; bg: string; text: string; border: string }> = {
   ingresado: { label: 'Ingresado', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-  diagnostico: { label: 'En Diagnóstico', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+  diagnostico: { label: 'Ingresado', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
   reparacion: { label: 'En Reparación', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200' },
-  repuestos: { label: 'Esperando Repuesto', bg: 'bg-orange-50', text: 'text-orange-800', border: 'border-orange-200' },
-  listo: { label: 'Listo p/ Entrega', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200' },
-  entregado: { label: 'Entregado', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' },
+  repuestos: { label: 'En Reparación', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200' },
+  listo: { label: 'Listo / Entregado', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200' },
+  entregado: { label: 'Listo / Entregado', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200' },
 };
 
 const STATUS_COLUMNS: OrderStatus[] = [
   'ingresado',
-  'diagnostico',
   'reparacion',
-  'repuestos',
-  'listo',
   'entregado',
 ];
 
@@ -39,6 +37,7 @@ export function WorkOrdersView({
   onDeleteOrder,
   searchTerm = '',
   setSearchTerm,
+  isSyncing = false,
 }: WorkOrdersViewProps) {
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
@@ -47,7 +46,13 @@ export function WorkOrdersView({
   const activeSearch = searchTerm !== undefined && searchTerm !== '' ? searchTerm : localSearch;
 
   const filteredOrders = workOrders.filter((order) => {
-    const matchesStatus = statusFilter === 'todos' || order.estado === statusFilter;
+    let matchesStatus = true;
+    if (statusFilter !== 'todos') {
+      if (statusFilter === 'ingresado') matchesStatus = order.estado === 'ingresado' || order.estado === 'diagnostico';
+      else if (statusFilter === 'reparacion') matchesStatus = order.estado === 'reparacion' || order.estado === 'repuestos';
+      else if (statusFilter === 'entregado') matchesStatus = order.estado === 'entregado' || order.estado === 'listo';
+      else matchesStatus = order.estado === statusFilter;
+    }
     const q = activeSearch.trim();
     const matchesQ =
       !q ||
@@ -106,6 +111,17 @@ export function WorkOrdersView({
         </div>
       </div>
 
+      {/* Syncing State Banner */}
+      {isSyncing && (
+        <div className="flex items-center justify-between px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs font-medium shadow-2xs animate-pulse">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
+            <span>Consultando Firebase en tiempo real para mantener tus órdenes actualizadas...</span>
+          </div>
+          <span className="text-[10px] text-blue-700 font-bold uppercase tracking-wider hidden sm:inline">Sincronizando</span>
+        </div>
+      )}
+
       {/* Filter and Search */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="relative w-full sm:w-80">
@@ -135,7 +151,12 @@ export function WorkOrdersView({
             Todos ({workOrders.length})
           </button>
           {STATUS_COLUMNS.map((st) => {
-            const count = workOrders.filter((w) => w.estado === st).length;
+            const count = workOrders.filter((w) => {
+              if (st === 'ingresado') return w.estado === 'ingresado' || w.estado === 'diagnostico';
+              if (st === 'reparacion') return w.estado === 'reparacion' || w.estado === 'repuestos';
+              if (st === 'entregado') return w.estado === 'entregado' || w.estado === 'listo';
+              return w.estado === st;
+            }).length;
             const cfg = STATUS_CONFIG[st];
             return (
               <button
@@ -156,15 +177,20 @@ export function WorkOrdersView({
 
       {/* KANBAN VIEW */}
       {viewMode === 'kanban' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 overflow-x-auto pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pb-4">
           {STATUS_COLUMNS.map((statusKey) => {
-            const statusOrders = filteredOrders.filter((o) => o.estado === statusKey);
+            const statusOrders = filteredOrders.filter((o) => {
+              if (statusKey === 'ingresado') return o.estado === 'ingresado' || o.estado === 'diagnostico';
+              if (statusKey === 'reparacion') return o.estado === 'reparacion' || o.estado === 'repuestos';
+              if (statusKey === 'entregado') return o.estado === 'entregado' || o.estado === 'listo';
+              return o.estado === statusKey;
+            });
             const cfg = STATUS_CONFIG[statusKey];
 
             return (
               <div
                 key={statusKey}
-                className="bg-slate-100/70 border border-slate-200 rounded-xl p-3 flex flex-col min-h-[450px] shrink-0 min-w-[260px] xl:min-w-0"
+                className="bg-slate-100/80 border border-slate-200 rounded-2xl p-4 flex flex-col min-h-[480px]"
               >
                 {/* Column Header */}
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 mb-3">
@@ -353,6 +379,23 @@ export function WorkOrdersView({
                     </tr>
                   );
                 })}
+                {filteredOrders.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center text-slate-500">
+                      {isSyncing ? (
+                        <div className="flex flex-col items-center justify-center gap-2 py-4">
+                          <RefreshCw className="w-6 h-6 text-amber-500 animate-spin" />
+                          <p className="font-bold text-slate-800 text-sm">Cargando órdenes desde la nube...</p>
+                          <p className="text-xs text-slate-500">Sincronizando con Firebase, tus datos aparecerán en breve.</p>
+                        </div>
+                      ) : (
+                        <p className="text-xs font-semibold text-slate-500 py-4">
+                          No se encontraron órdenes de trabajo para mostrar.
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

@@ -15,11 +15,11 @@ interface WorkOrderDetailModalProps {
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; bg: string; text: string; border: string }> = {
   ingresado: { label: 'Ingresado', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-  diagnostico: { label: 'En Diagnóstico', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+  diagnostico: { label: 'Ingresado', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
   reparacion: { label: 'En Reparación', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200' },
-  repuestos: { label: 'Esperando Repuesto', bg: 'bg-orange-50', text: 'text-orange-800', border: 'border-orange-200' },
-  listo: { label: 'Listo p/ Entrega', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200' },
-  entregado: { label: 'Entregado', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' },
+  repuestos: { label: 'En Reparación', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200' },
+  listo: { label: 'Listo / Entregado', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200' },
+  entregado: { label: 'Listo / Entregado', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200' },
 };
 
 export function WorkOrderDetailModal({
@@ -224,13 +224,11 @@ export function WorkOrderDetailModal({
             <select
               value={estado}
               onChange={(e) => setEstado(e.target.value as OrderStatus)}
-              className={`text-xs font-bold px-3 py-1.5 rounded-xl border ${STATUS_CONFIG[estado].bg} ${STATUS_CONFIG[estado].text} ${STATUS_CONFIG[estado].border}`}
+              className={`text-xs font-bold px-3 py-1.5 rounded-xl border cursor-pointer ${STATUS_CONFIG[estado]?.bg || 'bg-blue-50'} ${STATUS_CONFIG[estado]?.text || 'text-blue-700'} ${STATUS_CONFIG[estado]?.border || 'border-blue-200'}`}
             >
-              {Object.keys(STATUS_CONFIG).map((stKey) => (
-                <option key={stKey} value={stKey}>
-                  Estado: {STATUS_CONFIG[stKey as OrderStatus].label}
-                </option>
-              ))}
+              <option value="ingresado">Estado: 🔵 Ingresado</option>
+              <option value="reparacion">Estado: 🟡 En Reparación</option>
+              <option value="entregado">Estado: 🟢 Listo / Entregado</option>
             </select>
 
             <button

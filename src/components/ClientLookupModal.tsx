@@ -75,19 +75,16 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [] }: Cli
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
       case 'ingresado':
-        return <span className="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs font-bold">Ingresado al Taller</span>;
       case 'diagnostico':
-        return <span className="px-2.5 py-1 bg-purple-100 text-purple-800 rounded-lg text-xs font-bold">En Diagnóstico</span>;
+        return <span className="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs font-bold">Ingresado al Taller</span>;
       case 'reparacion':
-        return <span className="px-2.5 py-1 bg-orange-100 text-orange-800 rounded-lg text-xs font-bold">En Reparación</span>;
       case 'repuestos':
-        return <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold">Esperando Repuestos</span>;
+        return <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold">En Reparación</span>;
       case 'listo':
-        return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold flex items-center gap-1">¡Listo para Retirar!</span>;
       case 'entregado':
-        return <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold">Trabajo Entregado</span>;
+        return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold flex items-center gap-1">¡Listo / Entregado!</span>;
       default:
-        return null;
+        return <span className="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs font-bold">Ingresado al Taller</span>;
     }
   };
 

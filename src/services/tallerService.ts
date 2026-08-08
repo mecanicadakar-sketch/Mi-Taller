@@ -34,12 +34,27 @@ export async function createWorkshopProfile(workshop: Workshop): Promise<void> {
   const trialEnds = new Date();
   trialEnds.setDate(trialEnds.getDate() + 14);
 
-  // Check if profile already exists in localStorage or if existing subscription is active
   let existingSub = workshop.subscription;
+
+  // 1. Check if profile already exists in Firestore
   try {
+    const docRef = doc(db, 'workshops', workshop.id);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const remoteData = snap.data() as Workshop;
+      if (remoteData.subscription && (remoteData.subscription.status === 'active' || remoteData.subscription.plan === 'pro')) {
+        existingSub = remoteData.subscription;
+      }
+    }
+  } catch (e) {}
+
+  // 2. Check if profile exists in local storage
+  try {
+    const userW = localStorage.getItem(`mitaller_${workshop.id}_workshop`);
     const cachedProfile = localStorage.getItem('mitaller_workshop_profile');
-    if (cachedProfile) {
-      const parsed = JSON.parse(cachedProfile);
+    const sourceStr = userW || cachedProfile;
+    if (sourceStr) {
+      const parsed = JSON.parse(sourceStr);
       if (parsed.subscription && (parsed.subscription.status === 'active' || parsed.subscription.plan === 'pro')) {
         existingSub = parsed.subscription;
       }
@@ -71,7 +86,8 @@ export async function createWorkshopProfile(workshop: Workshop): Promise<void> {
 
   try {
     const docRef = doc(db, 'workshops', workshop.id);
-    await setDoc(docRef, workshopData, { merge: true });
+    const sanitized = sanitizeForFirestore(workshopData);
+    await setDoc(docRef, sanitized, { merge: true });
   } catch (err) {
     console.warn('Could not save workshop profile to Firestore:', err);
   }
@@ -216,13 +232,13 @@ export function subscribeToWorkshopCollections(
 
 // CRUD Operations
 export async function saveClient(client: Client, tallerId: string) {
-  const clientData = { ...client, tallerId };
+  const clientData = sanitizeForFirestore({ ...client, tallerId });
   const docRef = doc(db, 'clients', client.id);
   await setDoc(docRef, clientData, { merge: true });
 }
 
 export async function saveInventoryItem(item: InventoryItem, tallerId: string) {
-  const itemData = { ...item, tallerId };
+  const itemData = sanitizeForFirestore({ ...item, tallerId });
   const docRef = doc(db, 'inventory', item.id);
   await setDoc(docRef, itemData, { merge: true });
 }
@@ -233,7 +249,7 @@ export async function updateStock(itemId: string, newStock: number) {
 }
 
 export async function saveWorkOrder(order: WorkOrder, tallerId: string) {
-  const orderData = { ...order, tallerId };
+  const orderData = sanitizeForFirestore({ ...order, tallerId });
   const docRef = doc(db, 'workOrders', order.id);
   await setDoc(docRef, orderData, { merge: true });
 }
@@ -244,7 +260,7 @@ export async function updateWorkOrderStatus(orderId: string, estado: OrderStatus
 }
 
 export async function saveBudget(budget: Budget, tallerId: string) {
-  const budgetData = { ...budget, tallerId };
+  const budgetData = sanitizeForFirestore({ ...budget, tallerId });
   const docRef = doc(db, 'budgets', budget.id);
   await setDoc(docRef, budgetData, { merge: true });
 }
@@ -255,7 +271,7 @@ export async function deleteBudget(budgetId: string) {
 }
 
 export async function saveMechanic(mechanic: Mechanic, tallerId: string) {
-  const mechanicData = { ...mechanic, tallerId };
+  const mechanicData = sanitizeForFirestore({ ...mechanic, tallerId });
   const docRef = doc(db, 'mechanics', mechanic.id);
   await setDoc(docRef, mechanicData, { merge: true });
 }
@@ -315,6 +331,104 @@ export async function seedDemoDataForWorkshop(tallerId: string) {
   });
 
   await batch.commit();
+}
+
+function sanitizeForFirestore<T>(obj: T): T {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => sanitizeForFirestore(item)) as any;
+  }
+  if (typeof obj === 'object') {
+    const newObj: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        newObj[key] = sanitizeForFirestore(value);
+      }
+    }
+    return newObj;
+  }
+  return obj;
+}
+
+// Sync local guest data or offline items to Cloud Firestore
+export async function syncLocalDataToCloud(
+  tallerId: string,
+  localData?: {
+    clients?: Client[];
+    inventory?: InventoryItem[];
+    workOrders?: WorkOrder[];
+    budgets?: Budget[];
+    mechanics?: Mechanic[];
+  }
+) {
+  let clients = localData?.clients;
+  let inventory = localData?.inventory;
+  let workOrders = localData?.workOrders;
+  let budgets = localData?.budgets;
+  let mechanics = localData?.mechanics;
+
+  if (!clients) {
+    const s = localStorage.getItem('mitaller_guest_clients');
+    if (s) { try { clients = JSON.parse(s); } catch (e) {} }
+  }
+  if (!inventory) {
+    const s = localStorage.getItem('mitaller_guest_inventory');
+    if (s) { try { inventory = JSON.parse(s); } catch (e) {} }
+  }
+  if (!workOrders) {
+    const s = localStorage.getItem('mitaller_guest_workOrders');
+    if (s) { try { workOrders = JSON.parse(s); } catch (e) {} }
+  }
+  if (!budgets) {
+    const s = localStorage.getItem('mitaller_guest_budgets');
+    if (s) { try { budgets = JSON.parse(s); } catch (e) {} }
+  }
+  if (!mechanics) {
+    const s = localStorage.getItem('mitaller_guest_mechanics');
+    if (s) { try { mechanics = JSON.parse(s); } catch (e) {} }
+  }
+
+  const itemsToWrite: Array<{ collectionName: string; id: string; data: any }> = [];
+
+  if (clients && clients.length > 0) {
+    clients.forEach((c) => itemsToWrite.push({ collectionName: 'clients', id: c.id, data: { ...c, tallerId } }));
+  }
+  if (inventory && inventory.length > 0) {
+    inventory.forEach((i) => itemsToWrite.push({ collectionName: 'inventory', id: i.id, data: { ...i, tallerId } }));
+  }
+  if (workOrders && workOrders.length > 0) {
+    workOrders.forEach((w) => itemsToWrite.push({ collectionName: 'workOrders', id: w.id, data: { ...w, tallerId } }));
+  }
+  if (budgets && budgets.length > 0) {
+    budgets.forEach((b) => itemsToWrite.push({ collectionName: 'budgets', id: b.id, data: { ...b, tallerId } }));
+  }
+  if (mechanics && mechanics.length > 0) {
+    mechanics.forEach((m) => itemsToWrite.push({ collectionName: 'mechanics', id: m.id, data: { ...m, tallerId } }));
+  }
+
+  if (itemsToWrite.length === 0) return 0;
+
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < itemsToWrite.length; i += BATCH_SIZE) {
+    const chunk = itemsToWrite.slice(i, i + BATCH_SIZE);
+    const batch = writeBatch(db);
+
+    for (const item of chunk) {
+      const ref = doc(db, item.collectionName, item.id);
+      const sanitized = sanitizeForFirestore(item.data);
+      batch.set(ref, sanitized, { merge: true });
+    }
+
+    try {
+      await batch.commit();
+    } catch (err) {
+      console.error('Error sincronizando lote a Firestore:', err);
+    }
+  }
+
+  return itemsToWrite.length;
 }
 
 // Public Online Lookup: Search Work Orders by vehicle license plate (patente)

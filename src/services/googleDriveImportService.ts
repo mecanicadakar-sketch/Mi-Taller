@@ -676,13 +676,9 @@ export async function executeImportToFirestore(
     }
 
     try {
-      // Race batch.commit with a 2000ms timeout so offline/unconfigured Firestore never blocks the UI
-      await Promise.race([
-        batch.commit(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore write timeout')), 2000)),
-      ]);
+      await batch.commit();
     } catch (err) {
-      console.warn('Firestore writeBatch notice (data safely saved in LocalStorage):', err);
+      console.error('Error guardando lote en Firestore:', err);
     }
   }
 

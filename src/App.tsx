@@ -17,7 +17,8 @@ import {
   deleteInventoryItem,
   updateWorkshopSubscription,
   validateAndApplyLicenseCodeInFirestore,
-  createWorkshopProfile
+  createWorkshopProfile,
+  syncLocalDataToCloud
 } from './services/tallerService';
 
 import { Sidebar } from './components/Sidebar';
@@ -96,6 +97,9 @@ export default function App() {
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>(INITIAL_WORK_ORDERS);
   const [budgets, setBudgets] = useState<Budget[]>(INITIAL_BUDGETS);
   const [mechanics, setMechanics] = useState<Mechanic[]>(INITIAL_MECHANICS);
+
+  // Syncing status feedback
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   // Modals State
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
@@ -185,31 +189,39 @@ export default function App() {
     const cMechanics = localStorage.getItem(userMechanicsKey);
     if (cMechanics) { try { setMechanics(JSON.parse(cMechanics)); } catch (e) {} }
 
+    // Sync any unsynced local/guest items to cloud on login
+    syncLocalDataToCloud(currentUser.uid).catch((err) => {
+      console.warn('Error syncing initial local data to cloud:', err);
+    });
+
     // Subscribe to Firestore for logged in user's tallerId
+    setIsSyncing(true);
     const unsubscribeFirestore = subscribeToWorkshopCollections(
       currentUser.uid,
       async (data) => {
-        if (data.clients && data.clients.length > 0) {
+        setIsSyncing(false);
+
+        if (data.clients && Array.isArray(data.clients)) {
           setClients(data.clients);
           localStorage.setItem(userClientsKey, JSON.stringify(data.clients));
         }
 
-        if (data.inventory && data.inventory.length > 0) {
+        if (data.inventory && Array.isArray(data.inventory)) {
           setInventory(data.inventory);
           localStorage.setItem(userInventoryKey, JSON.stringify(data.inventory));
         }
 
-        if (data.workOrders && data.workOrders.length > 0) {
+        if (data.workOrders && Array.isArray(data.workOrders)) {
           setWorkOrders(data.workOrders);
           localStorage.setItem(userOrdersKey, JSON.stringify(data.workOrders));
         }
 
-        if (data.budgets && data.budgets.length > 0) {
+        if (data.budgets && Array.isArray(data.budgets)) {
           setBudgets(data.budgets);
           localStorage.setItem(userBudgetsKey, JSON.stringify(data.budgets));
         }
 
-        if (data.mechanics && data.mechanics.length > 0) {
+        if (data.mechanics && Array.isArray(data.mechanics)) {
           setMechanics(data.mechanics);
           localStorage.setItem(userMechanicsKey, JSON.stringify(data.mechanics));
         }
@@ -228,6 +240,7 @@ export default function App() {
 
           if (cachedProfile) {
             setWorkshop(cachedProfile);
+            await createWorkshopProfile(cachedProfile);
           } else {
             // Auto-create initial workshop profile doc in Firestore if missing
             const defaultName = currentUser.displayName
@@ -691,6 +704,7 @@ export default function App() {
           budgets={budgets}
           onSelectOrder={setSelectedOrder}
           onNavigateTab={setActiveTab}
+          isSyncing={isSyncing}
         />
 
         <main className="flex-1">
@@ -709,6 +723,7 @@ export default function App() {
               onOpenWhatsAppReminders={() => setShowWhatsAppModal(true)}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
+              isSyncing={isSyncing}
             />
           )}
 
@@ -725,6 +740,7 @@ export default function App() {
               onDeleteOrder={handleDeleteWorkOrder}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
+              isSyncing={isSyncing}
             />
           )}
 
@@ -976,17 +992,19 @@ export default function App() {
 
       {showGoogleSheetsModal && (
         <GoogleSheetsImportModal
-          tallerId={workshop?.id || currentUser?.uid || 'taller_demo'}
+          tallerId={currentUser?.uid || workshop?.id || 'demo-taller'}
           onClose={() => setShowGoogleSheetsModal(false)}
-          onImportSuccess={(data) => {
+          onImportSuccess={async (data) => {
             if (data) {
+              const activeUid = currentUser?.uid;
+
               if (data.clients.length > 0) {
                 setClients((prev) => {
                   const updated = deduplicateClients([...data.clients, ...prev]);
                   try {
                     localStorage.setItem('mitaller_guest_clients', JSON.stringify(updated));
-                    if (currentUser) {
-                      localStorage.setItem(`mitaller_${currentUser.uid}_clients`, JSON.stringify(updated));
+                    if (activeUid) {
+                      localStorage.setItem(`mitaller_${activeUid}_clients`, JSON.stringify(updated));
                     }
                   } catch (e) {}
                   return updated;
@@ -1000,8 +1018,8 @@ export default function App() {
                   const updated = Array.from(invMap.values());
                   try {
                     localStorage.setItem('mitaller_guest_inventory', JSON.stringify(updated));
-                    if (currentUser) {
-                      localStorage.setItem(`mitaller_${currentUser.uid}_inventory`, JSON.stringify(updated));
+                    if (activeUid) {
+                      localStorage.setItem(`mitaller_${activeUid}_inventory`, JSON.stringify(updated));
                     }
                   } catch (e) {}
                   return updated;
@@ -1012,12 +1030,20 @@ export default function App() {
                   const updated = deduplicateWorkOrders([...data.workOrders, ...prev]);
                   try {
                     localStorage.setItem('mitaller_guest_workOrders', JSON.stringify(updated));
-                    if (currentUser) {
-                      localStorage.setItem(`mitaller_${currentUser.uid}_workOrders`, JSON.stringify(updated));
+                    if (activeUid) {
+                      localStorage.setItem(`mitaller_${activeUid}_workOrders`, JSON.stringify(updated));
                     }
                   } catch (e) {}
                   return updated;
                 });
+              }
+
+              if (activeUid) {
+                try {
+                  await syncLocalDataToCloud(activeUid, data);
+                } catch (e) {
+                  console.error('Error sincronizando datos importados con Firebase:', e);
+                }
               }
             }
           }}
