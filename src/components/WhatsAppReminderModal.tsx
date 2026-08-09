@@ -72,7 +72,7 @@ export function WhatsAppReminderModal({
     return reminders.filter((item) => {
       // Filter by type
       if (filterType === 'overdue' && item.estadoRecordatorio !== 'overdue') return false;
-      if (filterType === 'due_soon' && item.estadoRecordatorio !== 'due_soon') return false;
+      if (filterType === 'due_soon' && item.estadoRecordatorio !== 'due_soon' && item.estadoRecordatorio !== 'upcoming') return false;
 
       // Filter by search term
       if (!searchTerm) return true;
@@ -89,7 +89,7 @@ export function WhatsAppReminderModal({
 
   const stats = useMemo(() => {
     const overdue = reminders.filter((r) => r.estadoRecordatorio === 'overdue').length;
-    const dueSoon = reminders.filter((r) => r.estadoRecordatorio === 'due_soon').length;
+    const dueSoon = reminders.filter((r) => r.estadoRecordatorio === 'due_soon' || r.estadoRecordatorio === 'upcoming').length;
     return { total: reminders.length, overdue, dueSoon };
   }, [reminders]);
 
@@ -388,6 +388,9 @@ export function WhatsAppReminderModal({
                         <span>
                           <strong>Objetivo Próximo:</strong> {item.proximoKmService.toLocaleString('es-PY')} km
                         </span>
+                        <span className="text-amber-300/90 font-medium">
+                          <strong>Intervalo:</strong> {item.intervaloKm?.toLocaleString('es-PY') || '10.000'} km ({item.maxMesesService || 12} meses)
+                        </span>
                       </div>
 
                       <div className="text-xs text-slate-400 flex items-center gap-2 flex-wrap">
@@ -403,7 +406,7 @@ export function WhatsAppReminderModal({
                         <span className="text-slate-500">
                           {item.diasDesdeUltimoService === 0
                             ? '(Último ingreso registrado hoy)'
-                            : `(Hace ${item.diasDesdeUltimoService} días del último servicio)`}
+                            : `(Hace ${item.diasDesdeUltimoService} días del último servicio - Máx: ${item.maxMesesService} meses / ${item.maxDiasService} días)`}
                         </span>
                       </div>
                     </div>

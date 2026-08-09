@@ -11,6 +11,9 @@ export interface MaintenanceReminderItem {
   kmActuales: number;
   diferenciaKm: number; // e.g. -500 (pasado por 500km), +200 (le faltan 200km)
   diasDesdeUltimoService: number;
+  intervaloKm: number;
+  maxMesesService: number;
+  maxDiasService: number;
   estadoRecordatorio: 'overdue' | 'due_soon' | 'upcoming';
   ordenTrabajoId?: string;
   notasService?: string;
@@ -58,19 +61,65 @@ export function formatWhatsAppPhone(phone: string): string {
  * Resolves the true target "Próximo Service (km)" given current vehicle km, raw value, and interval.
  */
 export function resolveProximoKm(
-  baseKm: number,
+  ultimoKm: number,
+  kmActuales: number,
   rawProximo?: number,
   intervalo = 10000
 ): number {
   const chosenInterval = (intervalo && intervalo > 0) ? intervalo : 10000;
 
-  if (rawProximo && rawProximo > baseKm) {
+  // 1. If explicit rawProximo target is set and greater than current mileage, respect it
+  if (rawProximo && rawProximo > kmActuales) {
     return rawProximo;
   }
+
+  // 2. If rawProximo was specified as a relative delta (e.g. 5000 or <= 50000)
   if (rawProximo && rawProximo > 0 && rawProximo <= 50000) {
-    return baseKm + rawProximo;
+    const base = Math.max(ultimoKm, kmActuales);
+    return base + rawProximo;
   }
-  return baseKm > 0 ? baseKm + chosenInterval : (rawProximo || chosenInterval);
+
+  // 3. Check if target calculated from last service is still in the future relative to kmActuales
+  if (ultimoKm > 0) {
+    const targetFromLastService = ultimoKm + chosenInterval;
+    if (targetFromLastService > kmActuales) {
+      return targetFromLastService;
+    }
+  }
+
+  // 4. If current mileage has reached or passed old service target (or if no last service),
+  // set next service target from current mileage + chosen interval
+  const baseKm = kmActuales > 0 ? kmActuales : ultimoKm;
+  return baseKm > 0 ? baseKm + chosenInterval : chosenInterval;
+}
+
+/**
+ * Calculates the time limits in days and months based on service interval in km.
+ * Rules requested by user:
+ * - 5,000 km -> 6 meses (180 días max, avisa desde 150 días)
+ * - 10,000 km -> 12 meses (365 días max, avisa desde 335 días)
+ * - 30,000 km -> 24 meses (730 días max, avisa desde 700 días)
+ * - 50,000 km o más -> 36 meses o más (1095 días max)
+ */
+export function getTimeLimitsForInterval(intervaloKm = 10000): { maxDays: number; dueSoonDays: number; maxMonths: number } {
+  if (intervaloKm <= 5000) {
+    return { maxDays: 180, dueSoonDays: 150, maxMonths: 6 };
+  }
+  if (intervaloKm <= 10000) {
+    return { maxDays: 365, dueSoonDays: 335, maxMonths: 12 };
+  }
+  if (intervaloKm <= 20000) {
+    return { maxDays: 547, dueSoonDays: 517, maxMonths: 18 };
+  }
+  if (intervaloKm <= 40000) {
+    return { maxDays: 730, dueSoonDays: 700, maxMonths: 24 };
+  }
+  // 50,000 km or more
+  const years = Math.max(3, Math.round(intervaloKm / 15000));
+  const maxMonths = years * 12;
+  const maxDays = Math.round(years * 365);
+  const dueSoonDays = maxDays - 30;
+  return { maxDays, dueSoonDays, maxMonths };
 }
 
 /**
@@ -79,7 +128,7 @@ export function resolveProximoKm(
 export function calculateReminders(
   workOrders: WorkOrder[],
   clients: Client[],
-  thresholdKm = 1000 // Remind when within 1000 km or 180 days
+  thresholdKm = 1000 // Remind when within thresholdKm
 ): MaintenanceReminderItem[] {
   const reminders: MaintenanceReminderItem[] = [];
   const processedVehicleKeys = new Set<string>();
@@ -141,9 +190,10 @@ export function calculateReminders(
 
     const rawProximo = wo.mantenimiento?.proximoKmService;
     const intervalo = wo.mantenimiento?.intervaloKm || 10000;
+    const { maxDays, dueSoonDays, maxMonths } = getTimeLimitsForInterval(intervalo);
 
-    // Calculate next service target based on last service mileage (ultimoKm)
-    const proximoKm = resolveProximoKm(ultimoKm, rawProximo, intervalo);
+    // Calculate next service target based on last service mileage and current mileage
+    const proximoKm = resolveProximoKm(ultimoKm, kmActuales, rawProximo, intervalo);
 
     if (proximoKm <= 0 && kmActuales <= 0) return;
 
@@ -162,33 +212,36 @@ export function calculateReminders(
       }
     }
 
-    // Determine status
-    let estadoRecordatorio: 'overdue' | 'due_soon' | 'upcoming' | null = null;
+    // Determine status based on BOTH mileage and time limit corresponding to interval
+    let estadoRecordatorio: 'overdue' | 'due_soon' | 'upcoming' = 'upcoming';
 
-    if (diferenciaKm <= 0 || diasDesdeUltimo >= 180) {
+    if (diferenciaKm <= 0 || (diasDesdeUltimo > 0 && diasDesdeUltimo >= maxDays)) {
       estadoRecordatorio = 'overdue';
-    } else if (diferenciaKm <= thresholdKm || diasDesdeUltimo >= 150) {
+    } else if (diferenciaKm <= thresholdKm || (diasDesdeUltimo > 0 && diasDesdeUltimo >= dueSoonDays)) {
       estadoRecordatorio = 'due_soon';
+    } else {
+      estadoRecordatorio = 'upcoming';
     }
 
-    if (estadoRecordatorio) {
-      processedVehicleKeys.add(vehicleKey);
-      reminders.push({
-        clientId: wo.clienteId,
-        clientNombre: wo.clienteNombre || 'Cliente',
-        clientTelefono: wo.clienteTelefono || '',
-        vehiculo: wo.vehiculo,
-        ultimoServiceKm: ultimoKm,
-        ultimoServiceFecha: wo.fechaIngreso,
-        proximoKmService: proximoKm,
-        kmActuales,
-        diferenciaKm,
-        diasDesdeUltimoService: diasDesdeUltimo,
-        estadoRecordatorio,
-        ordenTrabajoId: wo.id,
-        notasService: wo.mantenimiento?.notasService || wo.fallaReportada,
-      });
-    }
+    processedVehicleKeys.add(vehicleKey);
+    reminders.push({
+      clientId: wo.clienteId,
+      clientNombre: wo.clienteNombre || 'Cliente',
+      clientTelefono: wo.clienteTelefono || '',
+      vehiculo: wo.vehiculo,
+      ultimoServiceKm: ultimoKm,
+      ultimoServiceFecha: wo.fechaIngreso,
+      proximoKmService: proximoKm,
+      kmActuales,
+      diferenciaKm,
+      diasDesdeUltimoService: diasDesdeUltimo,
+      intervaloKm: intervalo,
+      maxMesesService: maxMonths,
+      maxDiasService: maxDays,
+      estadoRecordatorio,
+      ordenTrabajoId: wo.id,
+      notasService: wo.mantenimiento?.notasService || wo.fallaReportada,
+    });
   });
 
   // Also scan Clients with vehicles not covered in work orders
@@ -204,6 +257,7 @@ export function calculateReminders(
         // Assume next service at next multiple of 10,000 km
         const nextTarget = Math.ceil((kmActuales + 1) / 10000) * 10000;
         const diff = nextTarget - kmActuales;
+        const { maxDays, maxMonths } = getTimeLimitsForInterval(10000);
 
         if (diff <= thresholdKm && diff > 0) {
           processedVehicleKeys.add(vehicleKey);
@@ -218,6 +272,9 @@ export function calculateReminders(
             kmActuales,
             diferenciaKm: diff,
             diasDesdeUltimoService: 0,
+            intervaloKm: 10000,
+            maxMesesService: maxMonths,
+            maxDiasService: maxDays,
             estadoRecordatorio: 'due_soon',
           });
         }
