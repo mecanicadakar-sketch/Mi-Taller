@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { WorkOrder, Workshop, OrderStatus } from '../types/tallerya';
 import { searchWorkOrdersByPatente } from '../services/tallerService';
 import { resolveProximoKm } from '../services/whatsappReminderService';
+import { formatDateSpanish } from '../utils/dateUtils';
 import {
   Car,
   Search,
@@ -235,7 +236,7 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [] }: Cli
                               </div>
                               <p className="text-xs text-slate-600 flex items-center gap-1 mt-1">
                                 <Calendar className="w-3.5 h-3.5" />
-                                <span>Ingreso: {new Date(order.fechaIngreso).toLocaleDateString('es-ES')}</span>
+                                <span>Ingreso: {formatDateSpanish(order.fechaIngreso)}</span>
                                 {order.mecanicoAsignado && (
                                   <span className="ml-2 font-medium text-slate-700">| Mecánico: {order.mecanicoAsignado}</span>
                                 )}

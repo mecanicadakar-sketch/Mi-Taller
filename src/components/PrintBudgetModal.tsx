@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Budget, Workshop } from '../types/tallerya';
 import { Printer, Wrench, ShieldCheck, Phone, MapPin, Mail, Edit3, Save, X, Check, Send, MessageSquare } from 'lucide-react';
+import { formatDateSpanish } from '../utils/dateUtils';
 
 interface PrintBudgetModalProps {
   budget: Budget;
@@ -192,7 +193,7 @@ export function PrintBudgetModal({ budget, workshop, onClose }: PrintBudgetModal
             </div>
             <div style="text-align: right;">
               <div class="badge">${budget.numeroPresupuesto}</div>
-              <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Fecha: ${budget.fecha}</div>
+              <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Fecha: ${formatDateSpanish(budget.fecha)}</div>
               ${headerData.validez ? `<div style="font-size: 11px; color: #047857; margin-top: 4px; font-weight: 600;">Validez: ${headerData.validez}</div>` : ''}
             </div>
           </div>
@@ -296,7 +297,7 @@ export function PrintBudgetModal({ budget, workshop, onClose }: PrintBudgetModal
     if (headerData.telefono) text += `📞 Tel/WA: ${headerData.telefono}\n`;
     text += `\n👤 *Cliente:* ${budget.clienteNombre}\n`;
     text += `🚗 *Vehículo:* ${budget.vehiculoInfo}\n`;
-    text += `📅 *Fecha:* ${budget.fecha}\n`;
+    text += `📅 *Fecha:* ${formatDateSpanish(budget.fecha)}\n`;
     if (headerData.validez) text += `⏳ *Validez:* ${headerData.validez}\n`;
     text += `\n🛠️ *DETALLE DE SERVICIOS Y REPUESTOS:*\n${itemsList}\n`;
     if (budget.descuento > 0) {
@@ -548,7 +549,7 @@ export function PrintBudgetModal({ budget, workshop, onClose }: PrintBudgetModal
               <span className="px-3 py-1 bg-amber-100 text-amber-900 font-mono font-bold text-xs rounded-md border border-amber-300 inline-block">
                 {budget.numeroPresupuesto}
               </span>
-              <p className="text-xs text-slate-500">Fecha: {budget.fecha}</p>
+              <p className="text-xs text-slate-500">Fecha: {formatDateSpanish(budget.fecha)}</p>
               {headerData.validez && (
                 <p className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
                   Validez: {headerData.validez}

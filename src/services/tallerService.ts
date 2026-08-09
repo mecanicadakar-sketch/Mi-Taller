@@ -14,6 +14,7 @@ import {
 import { db } from '../lib/firebase';
 import { Client, InventoryItem, WorkOrder, Budget, Workshop, OrderStatus, Mechanic, PricingSettings } from '../types/tallerya';
 import { INITIAL_CLIENTS, INITIAL_INVENTORY, INITIAL_WORK_ORDERS, INITIAL_BUDGETS, INITIAL_MECHANICS } from '../data/mockData';
+import { parseAndNormalizeDate } from '../utils/dateUtils';
 
 // Workshop profile
 export async function getWorkshopProfile(tallerId: string): Promise<Workshop | null> {
@@ -584,7 +585,7 @@ export async function searchWorkOrdersByPatente(searchPatente: string): Promise<
     }
 
     // Sort newest orders first
-    matchedOrders.sort((a, b) => new Date(b.fechaIngreso).getTime() - new Date(a.fechaIngreso).getTime());
+    matchedOrders.sort((a, b) => new Date(parseAndNormalizeDate(b.fechaIngreso)).getTime() - new Date(parseAndNormalizeDate(a.fechaIngreso)).getTime());
 
     return { orders: matchedOrders, workshopsMap };
   } catch (error) {

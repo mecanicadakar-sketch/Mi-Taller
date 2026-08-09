@@ -29,6 +29,7 @@ export interface Mechanic {
   especialidad?: string;
   telefono?: string;
   activo: boolean;
+  createdAt?: string;
 }
 
 export interface Workshop {
@@ -54,6 +55,7 @@ export interface Vehicle {
   kilometraje: number;
   nivelCombustible: '1/4' | '1/2' | '3/4' | 'Lleno' | 'Reserva';
   observacionesVisuales?: string;
+  createdAt?: string;
 }
 
 export interface Client {
@@ -64,6 +66,7 @@ export interface Client {
   email: string;
   direccion?: string;
   vehiculos: Vehicle[];
+  createdAt?: string;
 }
 
 export interface ServiceItem {

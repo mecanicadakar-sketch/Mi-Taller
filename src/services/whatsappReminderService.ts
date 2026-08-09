@@ -1,4 +1,5 @@
 import { WorkOrder, Client, Vehicle } from '../types/tallerya';
+import { parseAndNormalizeDate } from '../utils/dateUtils';
 
 export interface MaintenanceReminderItem {
   clientId: string;
@@ -202,7 +203,8 @@ export function calculateReminders(
     // Calculate days since this service accurately
     let diasDesdeUltimo = 0;
     if (wo.fechaIngreso) {
-      const fechaIngresoDate = new Date(wo.fechaIngreso);
+      const parsedIso = parseAndNormalizeDate(wo.fechaIngreso);
+      const fechaIngresoDate = new Date(parsedIso);
       if (!isNaN(fechaIngresoDate.getTime())) {
         const hoy = new Date();
         const todayZero = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime();

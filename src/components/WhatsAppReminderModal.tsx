@@ -18,6 +18,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { WorkOrder, Client } from '../types/tallerya';
+import { formatDateSpanish } from '../utils/dateUtils';
 import {
   calculateReminders,
   buildWhatsAppMessage,
@@ -379,7 +380,7 @@ export function WhatsAppReminderModal({
                         {item.ultimoServiceKm > 0 && (
                           <span>
                             <strong>Último Service:</strong> {item.ultimoServiceKm.toLocaleString('es-PY')} km
-                            {item.ultimoServiceFecha ? ` (${new Date(item.ultimoServiceFecha).toLocaleDateString('es-PY')})` : ''}
+                            {item.ultimoServiceFecha ? ` (${formatDateSpanish(item.ultimoServiceFecha)})` : ''}
                           </span>
                         )}
                         <span>

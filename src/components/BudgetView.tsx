@@ -3,6 +3,7 @@ import { Budget, Workshop } from '../types/tallerya';
 import { PrintBudgetModal } from './PrintBudgetModal';
 import { Plus, Printer, Edit, Trash2, Search, X, Save, Send } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
+import { formatDateSpanish } from '../utils/dateUtils';
 
 interface BudgetViewProps {
   budgets: Budget[];
@@ -266,7 +267,7 @@ export function BudgetView({
                   <span className="font-mono font-bold text-slate-900 text-xs bg-slate-100 px-2 py-0.5 rounded-md">
                     {b.numeroPresupuesto}
                   </span>
-                  <span className="text-xs text-slate-400">{b.fecha}</span>
+                  <span className="text-xs text-slate-400">{formatDateSpanish(b.fecha)}</span>
                 </div>
                 <h3 className="font-bold text-slate-900 text-base mt-1">{b.clienteNombre}</h3>
                 <p className="text-xs text-slate-500">{b.vehiculoInfo}</p>

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Client, Vehicle } from '../types/tallerya';
-import { Search, UserPlus, Phone, Mail, Car, Plus, Wrench, Edit3, Save, MapPin, Trash2 } from 'lucide-react';
+import { Search, UserPlus, Phone, Mail, Car, Plus, Wrench, Edit3, Save, MapPin, Trash2, Calendar } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
+import { formatDateSpanish, parseAndNormalizeDate } from '../utils/dateUtils';
 
 interface ClientsViewProps {
   clients: Client[];
@@ -32,6 +33,7 @@ export function ClientsView({
   const [editTelefono, setEditTelefono] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editDireccion, setEditDireccion] = useState('');
+  const [editFechaRegistro, setEditFechaRegistro] = useState('');
 
   // Add / Edit Vehicle Modal State
   const [targetClientForVehicle, setTargetClientForVehicle] = useState<Client | null>(null);
@@ -42,12 +44,14 @@ export function ClientsView({
   const [vehAnio, setVehAnio] = useState(2022);
   const [vehKm, setVehKm] = useState(50000);
   const [vehCombustible, setVehCombustible] = useState('1/2');
+  const [vehFechaRegistro, setVehFechaRegistro] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
   // New Client Form State
   const [nombre, setNombre] = useState('');
   const [telefono, setTelefono] = useState('');
   const [email, setEmail] = useState('');
   const [direccion, setDireccion] = useState('');
+  const [fechaRegistro, setFechaRegistro] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
   // Vehicle sub-form inside client creation
   const [patente, setPatente] = useState('');
@@ -86,6 +90,7 @@ export function ClientsView({
       anio: Number(anio) || 2020,
       kilometraje: Number(kilometraje) || 0,
       nivelCombustible: '1/2',
+      createdAt: parseAndNormalizeDate(fechaRegistro),
     };
 
     const newClient: Client = {
@@ -95,6 +100,7 @@ export function ClientsView({
       email: email.trim(),
       direccion: direccion.trim(),
       vehiculos: [newVehicle],
+      createdAt: parseAndNormalizeDate(fechaRegistro),
     };
 
     onAddClient(newClient);
@@ -108,6 +114,7 @@ export function ClientsView({
     setPatente('');
     setMarca('');
     setModelo('');
+    setFechaRegistro(new Date().toISOString().split('T')[0]);
   };
 
   const openEditClientModal = (client: Client) => {
@@ -116,6 +123,7 @@ export function ClientsView({
     setEditTelefono(client.telefono || '');
     setEditEmail(client.email || '');
     setEditDireccion(client.direccion || '');
+    setEditFechaRegistro(client.createdAt ? client.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]);
   };
 
   const handleUpdateClientSubmit = (e: React.FormEvent) => {
@@ -128,6 +136,7 @@ export function ClientsView({
       telefono: editTelefono.trim(),
       email: editEmail.trim(),
       direccion: editDireccion.trim(),
+      createdAt: parseAndNormalizeDate(editFechaRegistro),
     };
 
     if (onUpdateClient) {
@@ -148,6 +157,7 @@ export function ClientsView({
       setVehAnio(vehicle.anio);
       setVehKm(vehicle.kilometraje);
       setVehCombustible(vehicle.nivelCombustible || '1/2');
+      setVehFechaRegistro(vehicle.createdAt ? vehicle.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]);
     } else {
       setEditingVehicle(null);
       setVehPatente('');
@@ -156,6 +166,7 @@ export function ClientsView({
       setVehAnio(2022);
       setVehKm(50000);
       setVehCombustible('1/2');
+      setVehFechaRegistro(new Date().toISOString().split('T')[0]);
     }
   };
 
@@ -176,6 +187,7 @@ export function ClientsView({
               anio: Number(vehAnio) || 2020,
               kilometraje: Number(vehKm) || 0,
               nivelCombustible: vehCombustible,
+              createdAt: parseAndNormalizeDate(vehFechaRegistro),
             }
           : v
       );
@@ -188,6 +200,7 @@ export function ClientsView({
         anio: Number(vehAnio) || 2020,
         kilometraje: Number(vehKm) || 0,
         nivelCombustible: vehCombustible,
+        createdAt: parseAndNormalizeDate(vehFechaRegistro),
       };
       updatedVehicles.push(newV);
     }
@@ -284,6 +297,12 @@ export function ClientsView({
                     <span className="flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-slate-400" />
                       {client.direccion}
+                    </span>
+                  )}
+                  {client.createdAt && (
+                    <span className="flex items-center gap-1 text-slate-400">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>Registrado: {formatDateSpanish(client.createdAt)}</span>
                     </span>
                   )}
                 </div>
@@ -409,7 +428,7 @@ export function ClientsView({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="text-xs font-semibold text-slate-700">Email</label>
                     <input
@@ -428,6 +447,16 @@ export function ClientsView({
                       onChange={(e) => setDireccion(e.target.value)}
                       placeholder="Ciudad, Calle..."
                       className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700">Fecha de Registro *</label>
+                    <input
+                      type="date"
+                      required
+                      value={fechaRegistro}
+                      onChange={(e) => setFechaRegistro(e.target.value)}
+                      className="w-full mt-1 p-2 bg-amber-50/50 border border-amber-200 rounded-lg text-xs font-bold text-slate-800"
                     />
                   </div>
                 </div>

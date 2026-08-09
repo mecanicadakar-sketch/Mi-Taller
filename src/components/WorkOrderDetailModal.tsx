@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { WorkOrder, OrderStatus, InventoryItem, Mechanic } from '../types/tallerya';
 import { Wrench, Car, User, Phone, CheckCircle2, Clock, Plus, Trash2, Save, Printer, Users, CheckSquare, Sparkles, Package } from 'lucide-react';
 import { resolveProximoKm } from '../services/whatsappReminderService';
+import { formatDateSpanish, parseAndNormalizeDate } from '../utils/dateUtils';
 
 interface WorkOrderDetailModalProps {
   order: WorkOrder;
@@ -45,6 +46,18 @@ export function WorkOrderDetailModal({
   const [observacionesVisuales, setObservacionesVisuales] = useState(order.vehiculo?.observacionesVisuales || '');
 
   // Order state
+  const [fechaIngreso, setFechaIngreso] = useState(() => {
+    if (order.fechaIngreso) {
+      const d = new Date(order.fechaIngreso);
+      if (!isNaN(d.getTime())) {
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().slice(0, 16);
+      }
+    }
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+  });
   const [fallaReportada, setFallaReportada] = useState(order.fallaReportada || '');
   const [estado, setEstado] = useState<OrderStatus>(order.estado);
   const [diagnostico, setDiagnostico] = useState(order.diagnosticoTecnico || '');
@@ -182,6 +195,7 @@ export function WorkOrderDetailModal({
     const totalEst = calculateTotal();
     const updated: WorkOrder = {
       ...order,
+      fechaIngreso: parseAndNormalizeDate(fechaIngreso),
       clienteNombre: clienteNombre.trim(),
       clienteTelefono: clienteTelefono.trim(),
       vehiculo: {
@@ -218,7 +232,15 @@ export function WorkOrderDetailModal({
                 {patente || order.vehiculo.patente}
               </span>
             </div>
-            <p className="text-xs text-slate-500">Ingresado el: {new Date(order.fechaIngreso).toLocaleString('es-ES')}</p>
+            <div className="flex items-center gap-1.5 text-xs text-slate-600">
+              <span className="font-medium">Ingresado:</span>
+              <input
+                type="datetime-local"
+                value={fechaIngreso}
+                onChange={(e) => setFechaIngreso(e.target.value)}
+                className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded text-xs font-semibold text-slate-800 focus:outline-hidden focus:border-amber-500"
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-3">

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { WorkOrder, Client, Vehicle, Mechanic, MantenimientoChecklist, InventoryItem, ServiceItem } from '../types/tallerya';
-import { Car, User, Wrench, ShieldAlert, Users, Plus, CheckSquare, Sparkles, Clock, Check, Package, Trash2, AlertCircle } from 'lucide-react';
+import { Car, User, Wrench, ShieldAlert, Users, Plus, CheckSquare, Sparkles, Clock, Check, Package, Trash2, AlertCircle, Calendar } from 'lucide-react';
+import { parseAndNormalizeDate } from '../utils/dateUtils';
 
 interface NewWorkOrderModalProps {
   clients: Client[];
@@ -24,6 +25,11 @@ export function NewWorkOrderModal({
   onOpenMechanicsModal,
 }: NewWorkOrderModalProps) {
   // Client selection or new entry
+  const [fechaIngreso, setFechaIngreso] = useState<string>(() => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+  });
   const [selectedClientId, setSelectedClientId] = useState<string>(preselectedClient?.id || '');
   const [clienteNombre, setClienteNombre] = useState(preselectedClient?.nombre || '');
   const [clienteTelefono, setClienteTelefono] = useState(preselectedClient?.telefono || '');
@@ -305,7 +311,7 @@ export function NewWorkOrderModal({
     const newOrder: WorkOrder = {
       id: 'wo_' + Date.now(),
       numeroOrden: `OT-${Math.floor(1040 + Math.random() * 500)}`,
-      fechaIngreso: new Date().toISOString(),
+      fechaIngreso: parseAndNormalizeDate(fechaIngreso),
       clienteId: selectedClientId || 'c_' + Date.now(),
       clienteNombre: clienteNombre.trim(),
       clienteTelefono: clienteTelefono.trim(),
@@ -343,6 +349,20 @@ export function NewWorkOrderModal({
         {/* Form wrapping scrollable body and fixed footer */}
         <form ref={formRef} onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden min-h-0">
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+            {/* Fecha de Ingreso del Vehiculo */}
+            <div className="flex items-center justify-between bg-amber-50/80 p-3 rounded-xl border border-amber-200">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="text-xs font-bold text-slate-800">Fecha / Hora de Ingreso:</span>
+              </div>
+              <input
+                type="datetime-local"
+                required
+                value={fechaIngreso}
+                onChange={(e) => setFechaIngreso(e.target.value)}
+                className="px-3 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-hidden focus:border-amber-500"
+              />
+            </div>
             {validationError && (
               <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold rounded-xl flex items-center justify-between gap-2 shadow-2xs">
                 <div className="flex items-center gap-2">

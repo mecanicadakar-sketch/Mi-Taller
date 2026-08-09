@@ -4,6 +4,7 @@ import { auth, db } from '../lib/firebase';
 import { Client, InventoryItem, WorkOrder, Vehicle, OrderStatus } from '../types/tallerya';
 import { saveClient, saveInventoryItem, saveWorkOrder } from './tallerService';
 import { resolveProximoKm } from './whatsappReminderService';
+import { parseAndNormalizeDate } from '../utils/dateUtils';
 
 export interface ParsedSheetData {
   title?: string;
@@ -317,7 +318,7 @@ export function mapSheetRowsToEntities(
     const proximoCambioStr = getValue('proximo cambio', 'proximo km', 'proximo');
     const tipoAceite = getValue('tipo de aceite', 'aceite motor', 'aceite');
     const filtrosCambiados = getValue('filtros cambiados', 'filtros');
-    const fecha = getValue('fecha', 'date');
+    const fecha = getValue('fecha ingreso', 'fecha_ingreso', 'fecha de ingreso', 'fecha servicio', 'fecha de servicio', 'fecha ot', 'f.ingreso', 'f_ingreso', 'f.servicio', 'f_servicio', 'creado', 'creacion', 'ingreso', 'fecha', 'date');
     const idServicio = getValue('idservicio', 'id servicio', 'codigo');
 
     const repuestoCodigo = idServicio || getValue('codigo', 'sku', 'cod', 'referencia');
@@ -419,6 +420,9 @@ export function mapSheetRowsToEntities(
             existingClient.telefono = telefono;
           }
           if (email && !existingClient.email) existingClient.email = email;
+          if (fecha && !existingClient.createdAt) {
+            existingClient.createdAt = parseAndNormalizeDate(fecha);
+          }
           vehiculos.forEach((v) => {
             const ev = existingClient.vehiculos.find(
               (x) => x.patente?.trim().toUpperCase() === v.patente?.trim().toUpperCase()
@@ -438,6 +442,7 @@ export function mapSheetRowsToEntities(
             email: email || '',
             direccion: direccion || '',
             vehiculos,
+            createdAt: parseAndNormalizeDate(fecha),
           });
         }
       }
@@ -483,7 +488,7 @@ export function mapSheetRowsToEntities(
           id: orderId,
           tallerId,
           numeroOrden: numOrd,
-          fechaIngreso: fecha || new Date().toISOString().split('T')[0],
+          fechaIngreso: parseAndNormalizeDate(fecha),
           clienteId: clientId,
           clienteNombre: nombre || `Cliente ${patente || index + 1}`,
           clienteTelefono: telefono || '',
