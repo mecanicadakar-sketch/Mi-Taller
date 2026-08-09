@@ -24,6 +24,7 @@ export function InventoryView({
   const [selectedCategory, setSelectedCategory] = useState('todas');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
 
   // Form states
   const [codigo, setCodigo] = useState('');
@@ -248,11 +249,7 @@ export function InventoryView({
                         </button>
                         {onDeleteItem && (
                           <button
-                            onClick={() => {
-                              if (confirm(`¿Estás seguro de eliminar "${item.nombre}" del inventario?`)) {
-                                onDeleteItem(item.id);
-                              }
-                            }}
+                            onClick={() => setItemToDelete(item)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                             title="Eliminar repuesto"
                           >
@@ -403,6 +400,42 @@ export function InventoryView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Item Deletion Modal */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2 bg-rose-50 rounded-xl">
+                <Trash2 className="w-6 h-6 text-rose-600" />
+              </div>
+              <h3 className="font-bold text-base text-slate-900">¿Eliminar Repuesto?</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              ¿Estás seguro de eliminar el repuesto <strong className="text-slate-900">{itemToDelete.nombre}</strong> (Código: {itemToDelete.codigo}) del inventario? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setItemToDelete(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (onDeleteItem && itemToDelete) {
+                    onDeleteItem(itemToDelete.id);
+                  }
+                  setItemToDelete(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+              >
+                Eliminar Repuesto
+              </button>
+            </div>
           </div>
         </div>
       )}

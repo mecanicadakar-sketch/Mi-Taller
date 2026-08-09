@@ -24,6 +24,7 @@ export function ClientsView({
 }: ClientsViewProps) {
   const [localSearch, setLocalSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
 
   // Edit Client Modal State
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -260,11 +261,7 @@ export function ClientsView({
                   </button>
                   {onDeleteClient && (
                     <button
-                      onClick={() => {
-                        if (confirm(`¿Estás seguro de eliminar el cliente "${client.nombre}"?`)) {
-                          onDeleteClient(client.id);
-                        }
-                      }}
+                      onClick={() => setClientToDelete(client)}
                       title="Eliminar cliente"
                       className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                     >
@@ -713,6 +710,42 @@ export function ClientsView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Client Deletion Modal */}
+      {clientToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2 bg-rose-50 rounded-xl">
+                <Trash2 className="w-6 h-6 text-rose-600" />
+              </div>
+              <h3 className="font-bold text-base text-slate-900">¿Eliminar Cliente?</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              ¿Estás seguro de eliminar el cliente <strong className="text-slate-900">{clientToDelete.nombre}</strong>? Se conservarán sus datos históricos si existen órdenes finalizadas.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setClientToDelete(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (onDeleteClient && clientToDelete) {
+                    onDeleteClient(clientToDelete.id);
+                  }
+                  setClientToDelete(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+              >
+                Eliminar Cliente
+              </button>
+            </div>
           </div>
         </div>
       )}

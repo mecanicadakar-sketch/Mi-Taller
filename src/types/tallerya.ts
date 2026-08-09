@@ -8,6 +8,7 @@ export interface SubscriptionInfo {
   trialEndsAt: string; // ISO string date
   subscriptionEndsAt?: string;
   maxWorkOrders?: number; // e.g., 20 for trial/basic
+  licenseCode?: string;
 }
 
 export interface Mechanic {
@@ -30,6 +31,7 @@ export interface Workshop {
   logoUrl?: string;
   createdAt: string;
   subscription?: SubscriptionInfo;
+  licenseCode?: string;
 }
 
 export interface Vehicle {

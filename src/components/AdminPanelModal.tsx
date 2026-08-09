@@ -3,6 +3,7 @@ import { Workshop } from '../types/tallerya';
 import {
   getAllWorkshops,
   adminUpdateWorkshopSubscription,
+  adminDeleteWorkshop,
   createLicenseCodeInFirestore,
   getAllLicenseCodesFromFirestore,
   LicenseCodeDoc
@@ -26,7 +27,8 @@ import {
   Sparkles,
   Calendar,
   AlertCircle,
-  Mail
+  Mail,
+  Trash2
 } from 'lucide-react';
 
 interface AdminPanelModalProps {
@@ -57,6 +59,7 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
   const [creatingLicense, setCreatingLicense] = useState(false);
   const [actionSuccess, setActionSuccess] = useState('');
   const [actionError, setActionError] = useState('');
+  const [workshopToDelete, setWorkshopToDelete] = useState<Workshop | null>(null);
 
   useEffect(() => {
     // Auto-authenticate if email is owner mecanicadakar@gmail.com
@@ -121,6 +124,30 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
     } catch (err: any) {
       console.error('Error updating subscription:', err);
       setActionError('Error al actualizar suscripción: ' + (err.message || String(err)));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteWorkshop = (w: Workshop) => {
+    setWorkshopToDelete(w);
+  };
+
+  const confirmDeleteWorkshop = async () => {
+    if (!workshopToDelete) return;
+    const w = workshopToDelete;
+    setWorkshopToDelete(null);
+
+    setLoading(true);
+    setActionSuccess('');
+    setActionError('');
+    try {
+      await adminDeleteWorkshop(w.id, w.email);
+      setActionSuccess(`El taller "${w.nombreTaller || w.id}" ha sido eliminado exitosamente.`);
+      await loadData();
+    } catch (err: any) {
+      console.error('Error deleting workshop:', err);
+      setActionError('Error al eliminar taller: ' + (err.message || String(err)));
     } finally {
       setLoading(false);
     }
@@ -207,8 +234,8 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-slate-900 rounded-2xl shadow-2xl max-w-4xl w-full border border-slate-800 overflow-hidden my-6 flex flex-col max-h-[92vh] text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm overflow-hidden">
+      <div className="bg-slate-900 rounded-2xl shadow-2xl max-w-4xl w-full border border-slate-800 overflow-hidden my-auto flex flex-col max-h-[90vh] h-[90vh] text-slate-100">
         {/* Header */}
         <div className="bg-gradient-to-r from-amber-600 via-amber-500 to-slate-900 text-slate-950 p-5 sm:p-6 relative shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -319,7 +346,7 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
             )}
 
             {/* Body Content */}
-            <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-slate-900/50">
+            <div className="p-4 sm:p-6 overflow-y-auto min-h-0 flex-1 space-y-6 bg-slate-900/50">
               {activeTab === 'workshops' && (
                 <div className="space-y-4">
                   {/* Search Bar */}
@@ -417,9 +444,18 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
 
                               <button
                                 onClick={() => handleUpdateSubscription(w.id, 'trial', 'expired', 0)}
-                                className="px-2.5 py-1.5 bg-slate-800 hover:bg-red-950/60 hover:text-red-400 text-slate-400 font-semibold text-xs rounded-xl transition-colors"
+                                className="px-2.5 py-1.5 bg-slate-800 hover:bg-amber-950/60 hover:text-amber-400 text-slate-400 font-semibold text-xs rounded-xl transition-colors"
                               >
                                 Expirar
+                              </button>
+
+                              <button
+                                onClick={() => handleDeleteWorkshop(w)}
+                                className="px-2.5 py-1.5 bg-red-950/50 hover:bg-red-600 text-red-400 hover:text-white font-semibold text-xs rounded-xl border border-red-800/60 transition-colors flex items-center gap-1"
+                                title="Eliminar taller permanentemente"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Eliminar</span>
                               </button>
                             </div>
                           </div>
@@ -657,6 +693,42 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
           </>
         )}
       </div>
+
+      {/* Workshop Deletion Confirmation Modal */}
+      {workshopToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xs">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl text-slate-100">
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="p-2.5 bg-red-950/80 rounded-xl border border-red-800/50">
+                <Trash2 className="w-6 h-6 text-red-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-white">¿Eliminar Taller?</h3>
+                <p className="text-xs text-slate-400">Confirmar acción irreversible</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              ¿Estás seguro de ELIMINAR permanentemente el taller <strong className="text-amber-300">{workshopToDelete.nombreTaller || workshopToDelete.email || workshopToDelete.id}</strong>? Esta acción borrará el registro del taller del sistema.
+            </p>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setWorkshopToDelete(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeleteWorkshop}
+                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-md transition-colors"
+              >
+                Sí, Eliminar Taller
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

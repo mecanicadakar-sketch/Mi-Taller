@@ -37,6 +37,7 @@ export function MechanicsModal({
   const [telefono, setTelefono] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [editingMechanic, setEditingMechanic] = useState<Mechanic | null>(null);
+  const [mechanicToDelete, setMechanicToDelete] = useState<Mechanic | null>(null);
 
   if (!isOpen) return null;
 
@@ -266,11 +267,7 @@ export function MechanicsModal({
                       </button>
 
                       <button
-                        onClick={() => {
-                          if (confirm(`¿Eliminar a ${m.nombre} del taller?`)) {
-                            onDeleteMechanic(m.id);
-                          }
-                        }}
+                        onClick={() => setMechanicToDelete(m)}
                         className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Eliminar registro"
                       >
@@ -294,6 +291,42 @@ export function MechanicsModal({
           </button>
         </div>
       </div>
+
+      {/* Mechanic Deletion Confirmation Modal */}
+      {mechanicToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200 text-slate-900">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2 bg-rose-50 rounded-xl">
+                <Trash2 className="w-6 h-6 text-rose-600" />
+              </div>
+              <h3 className="font-bold text-base text-slate-900">¿Eliminar Mecánico?</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              ¿Estás seguro de eliminar a <strong className="text-slate-900">{mechanicToDelete.nombre}</strong> del registro del taller?
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setMechanicToDelete(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (mechanicToDelete) {
+                    onDeleteMechanic(mechanicToDelete.id);
+                  }
+                  setMechanicToDelete(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+              >
+                Eliminar Mecánico
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

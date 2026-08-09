@@ -42,6 +42,7 @@ export function WorkOrdersView({
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [localSearch, setLocalSearch] = useState<string>('');
+  const [orderToDelete, setOrderToDelete] = useState<WorkOrder | null>(null);
 
   const activeSearch = searchTerm !== undefined && searchTerm !== '' ? searchTerm : localSearch;
 
@@ -259,9 +260,7 @@ export function WorkOrdersView({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (confirm(`¿Estás seguro de eliminar la órden ${order.numeroOrden}?`)) {
-                                  onDeleteOrder(order.id);
-                                }
+                                setOrderToDelete(order);
                               }}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                               title="Eliminar órden de trabajo"
@@ -364,9 +363,7 @@ export function WorkOrdersView({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (confirm(`¿Estás seguro de eliminar la órden ${order.numeroOrden}?`)) {
-                                  onDeleteOrder(order.id);
-                                }
+                                setOrderToDelete(order);
                               }}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                               title="Eliminar órden"
@@ -398,6 +395,42 @@ export function WorkOrdersView({
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Order Deletion */}
+      {orderToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2 bg-rose-50 rounded-xl">
+                <Trash2 className="w-6 h-6 text-rose-600" />
+              </div>
+              <h3 className="font-bold text-base text-slate-900">¿Eliminar Órden?</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              ¿Estás seguro de eliminar la Orden de Trabajo <strong className="text-slate-900">{orderToDelete.numeroOrden}</strong> ({orderToDelete.vehiculo?.marca} {orderToDelete.vehiculo?.modelo})? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setOrderToDelete(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (onDeleteOrder && orderToDelete) {
+                    onDeleteOrder(orderToDelete.id);
+                  }
+                  setOrderToDelete(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+              >
+                Eliminar Órden
+              </button>
+            </div>
           </div>
         </div>
       )}

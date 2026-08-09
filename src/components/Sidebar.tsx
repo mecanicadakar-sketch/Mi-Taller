@@ -124,32 +124,50 @@ export function Sidebar({
       </div>
 
       {/* Workshop Profile / Cloud Account Card */}
-      <div className="p-3 mx-3 mt-3 bg-slate-800/90 border border-slate-700/80 rounded-xl">
+      <div className="p-3 mx-3 mt-3 bg-slate-800/90 border border-slate-700/80 rounded-xl space-y-2">
         {currentUser ? (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider flex items-center gap-1">
+              <span className="text-[10px] uppercase font-extrabold text-emerald-400 tracking-wider flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 Nube Sincronizada
               </span>
               <button
                 onClick={onSignOut}
-                className="text-[11px] text-slate-400 hover:text-red-400 flex items-center gap-1 transition-colors"
+                className="text-[11px] text-slate-400 hover:text-red-400 flex items-center gap-1 transition-colors font-medium"
                 title="Cerrar sesión"
               >
                 <LogOut className="w-3 h-3" />
                 Salir
               </button>
             </div>
-            <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
-              <p className="text-xs font-bold text-white truncate">
-                {workshop?.nombreTaller || 'Mi Taller Mecánico'}
-              </p>
+
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
+                <p className="text-xs font-bold text-white truncate">
+                  {workshop?.nombreTaller || 'Mi Taller Mecánico'}
+                </p>
+              </div>
+              <span
+                className={`px-2 py-0.5 text-[10px] font-black rounded-md uppercase tracking-wider shrink-0 ${
+                  workshop?.subscription?.plan === 'pro' || workshop?.subscription?.plan === 'enterprise'
+                    ? 'bg-amber-400 text-slate-950 shadow-xs'
+                    : 'bg-slate-700 text-amber-300 border border-slate-600'
+                }`}
+              >
+                {workshop?.subscription?.plan ? workshop.subscription.plan.toUpperCase() : 'TRIAL'}
+              </span>
             </div>
-            <p className="text-[10px] text-slate-400 truncate">
-              {workshop?.nombreOwner ? `Dueño: ${workshop.nombreOwner}` : currentUser.email}
-            </p>
+
+            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-700/60">
+              <span className="truncate max-w-[110px]" title={workshop?.nombreOwner || currentUser.email || ''}>
+                {workshop?.nombreOwner ? `Dueño: ${workshop.nombreOwner}` : currentUser.email}
+              </span>
+              <span className="font-mono text-slate-300 bg-slate-900/80 px-1.5 py-0.5 rounded-sm border border-slate-700/50 text-[10px] shrink-0">
+                Cód: <span className="text-amber-300 font-bold">{workshop?.licenseCode || workshop?.subscription?.licenseCode || 'PRO-XZ6EM-2026'}</span>
+              </span>
+            </div>
           </div>
         ) : (
           <div className="space-y-2 text-center py-0.5">

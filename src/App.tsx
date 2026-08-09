@@ -249,6 +249,11 @@ export default function App() {
               ? `Taller ${currentUser.email.split('@')[0]}`
               : 'Mecanica Dakar';
 
+            const isMasterUser =
+              currentUser.email?.toLowerCase() === 'mecanicadakar@gmail.com' ||
+              currentUser.uid === '8zOO1dluXNhwYkxQFbAI1KetnQ2' ||
+              currentUser.uid === '8zOO1dluXNhwYkxQFbAl1KetnQ2';
+
             const newWorkshop: Workshop = {
               id: currentUser.uid,
               nombreTaller: defaultName,
@@ -257,12 +262,20 @@ export default function App() {
               telefono: '+595975635770',
               direccion: '',
               createdAt: new Date().toISOString(),
-              subscription: {
-                plan: 'trial',
-                status: 'trial',
-                trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-                maxWorkOrders: 50,
-              },
+              subscription: isMasterUser
+                ? {
+                    plan: 'pro',
+                    status: 'active',
+                    trialEndsAt: new Date().toISOString(),
+                    subscriptionEndsAt: new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000).toISOString(),
+                    maxWorkOrders: 999999,
+                  }
+                : {
+                    plan: 'trial',
+                    status: 'trial',
+                    trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                    maxWorkOrders: 50,
+                  },
             };
             setWorkshop(newWorkshop);
             try {
@@ -311,6 +324,16 @@ export default function App() {
       localStorage.setItem(key, JSON.stringify(next));
       return next;
     });
+    try {
+      const guestRaw = localStorage.getItem('mitaller_guest_workOrders');
+      if (guestRaw) {
+        const guestItems = JSON.parse(guestRaw);
+        if (Array.isArray(guestItems)) {
+          localStorage.setItem('mitaller_guest_workOrders', JSON.stringify(guestItems.filter((o: any) => o.id !== orderId)));
+        }
+      }
+    } catch (e) {}
+
     if (currentUser) {
       await deleteWorkOrder(orderId);
     }
@@ -323,6 +346,16 @@ export default function App() {
       localStorage.setItem(key, JSON.stringify(next));
       return next;
     });
+    try {
+      const guestRaw = localStorage.getItem('mitaller_guest_clients');
+      if (guestRaw) {
+        const guestItems = JSON.parse(guestRaw);
+        if (Array.isArray(guestItems)) {
+          localStorage.setItem('mitaller_guest_clients', JSON.stringify(guestItems.filter((c: any) => c.id !== clientId)));
+        }
+      }
+    } catch (e) {}
+
     if (currentUser) {
       await deleteClient(clientId);
     }
@@ -374,6 +407,16 @@ export default function App() {
       localStorage.setItem(key, JSON.stringify(next));
       return next;
     });
+    try {
+      const guestRaw = localStorage.getItem('mitaller_guest_inventory');
+      if (guestRaw) {
+        const guestItems = JSON.parse(guestRaw);
+        if (Array.isArray(guestItems)) {
+          localStorage.setItem('mitaller_guest_inventory', JSON.stringify(guestItems.filter((i: any) => i.id !== itemId)));
+        }
+      }
+    } catch (e) {}
+
     if (currentUser) {
       await deleteInventoryItem(itemId);
     }
@@ -495,6 +538,16 @@ export default function App() {
       localStorage.setItem(key, JSON.stringify(next));
       return next;
     });
+    try {
+      const guestRaw = localStorage.getItem('mitaller_guest_budgets');
+      if (guestRaw) {
+        const guestItems = JSON.parse(guestRaw);
+        if (Array.isArray(guestItems)) {
+          localStorage.setItem('mitaller_guest_budgets', JSON.stringify(guestItems.filter((b: any) => b.id !== budgetId)));
+        }
+      }
+    } catch (e) {}
+
     if (currentUser) {
       await deleteBudget(budgetId);
     }
@@ -520,6 +573,16 @@ export default function App() {
       localStorage.setItem(key, JSON.stringify(next));
       return next;
     });
+    try {
+      const guestRaw = localStorage.getItem('mitaller_guest_mechanics');
+      if (guestRaw) {
+        const guestItems = JSON.parse(guestRaw);
+        if (Array.isArray(guestItems)) {
+          localStorage.setItem('mitaller_guest_mechanics', JSON.stringify(guestItems.filter((m: any) => m.id !== mechanicId)));
+        }
+      }
+    } catch (e) {}
+
     if (currentUser) {
       await deleteMechanic(mechanicId);
     }

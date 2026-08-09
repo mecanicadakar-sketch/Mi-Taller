@@ -1,5 +1,5 @@
 import { GoogleAuthProvider, signInWithPopup, User } from 'firebase/auth';
-import { doc, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { Client, InventoryItem, WorkOrder, Vehicle, OrderStatus } from '../types/tallerya';
 import { saveClient, saveInventoryItem, saveWorkOrder } from './tallerService';
@@ -236,21 +236,11 @@ export function deduplicateClients(clientsList: Client[]): Client[] {
 export function deduplicateWorkOrders(ordersList: WorkOrder[]): WorkOrder[] {
   const map = new Map<string, WorkOrder>();
   ordersList.forEach((o) => {
-    const patenteKey = o.vehiculo?.patente ? o.vehiculo.patente.trim().toUpperCase() : '';
-    const numKey = o.numeroOrden ? o.numeroOrden.trim().toUpperCase() : '';
-    const isGenericNum = !numKey || numKey.startsWith('OT-IMP-') || numKey === 'OT-IMP';
-
-    const uniqueKey = !isGenericNum
-      ? `num_${numKey}`
-      : (patenteKey && patenteKey !== 'S/P' && o.fechaIngreso)
-      ? `pat_${patenteKey}_${o.fechaIngreso}_${cleanId(o.fallaReportada.substring(0, 30))}`
-      : o.id;
-
-    if (!map.has(uniqueKey)) {
-      map.set(uniqueKey, { ...o });
+    const key = o.id || `wo_${o.numeroOrden || ''}_${o.fechaIngreso || ''}`;
+    if (!map.has(key)) {
+      map.set(key, { ...o });
     } else {
-      const existing = map.get(uniqueKey)!;
-      // Keep the record with higher kilometraje or richer information
+      const existing = map.get(key)!;
       if ((o.vehiculo?.kilometraje || 0) > (existing.vehiculo?.kilometraje || 0)) {
         existing.vehiculo.kilometraje = o.vehiculo.kilometraje;
       }
@@ -480,14 +470,14 @@ export function mapSheetRowsToEntities(
         const orderId = idServicio
           ? `wo_${cleanId(idServicio)}`
           : (patente && fecha)
-          ? `wo_${cleanId(patente)}_${cleanId(fecha)}`
+          ? `wo_${cleanId(patente)}_${cleanId(fecha)}_${index + 1}`
           : patente
-          ? `wo_${cleanId(patente)}_${cleanId(kmStr || falla.substring(0, 15) || String(index))}`
-          : `wo_row_${index}`;
+          ? `wo_${cleanId(patente)}_${cleanId(kmStr || falla.substring(0, 15) || String(index))}_${index + 1}`
+          : `wo_row_${index + 1}`;
 
         const numOrd = idServicio
           ? (idServicio.toUpperCase().startsWith('OT') ? idServicio.toUpperCase() : `OT-${idServicio}`)
-          : (patente ? `OT-${patente}` : `OT-IMP-${1000 + index}`);
+          : (patente ? `OT-${patente}-${index + 1}` : `OT-IMP-${1000 + index + 1}`);
 
     const workOrderData: WorkOrder = {
           id: orderId,
@@ -663,8 +653,8 @@ export async function executeImportToFirestore(
     return { clientsSaved: 0, inventorySaved: 0, ordersSaved: 0 };
   }
 
-  // Commit in chunks of 100 docs per writeBatch
-  const BATCH_SIZE = 100;
+  // Commit in chunks of 50 docs per writeBatch
+  const BATCH_SIZE = 50;
   for (let i = 0; i < docsToWrite.length; i += BATCH_SIZE) {
     const chunk = docsToWrite.slice(i, i + BATCH_SIZE);
     const batch = writeBatch(db);
@@ -678,7 +668,17 @@ export async function executeImportToFirestore(
     try {
       await batch.commit();
     } catch (err) {
-      console.error('Error guardando lote en Firestore:', err);
+      console.warn('Error guardando lote en Firestore (batch commit error), intentando uno a uno:', err);
+      // Fallback: save individually
+      for (const item of chunk) {
+        try {
+          const docRef = doc(db, item.collectionName, item.id);
+          const sanitized = sanitizeForFirestore(item.data);
+          await setDoc(docRef, sanitized, { merge: true });
+        } catch (singleErr) {
+          console.warn(`Could not save single item ${item.id} to Firestore:`, singleErr);
+        }
+      }
     }
   }
 

@@ -26,6 +26,7 @@ export function BudgetView({
   const [selectedForPrint, setSelectedForPrint] = useState<Budget | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
+  const [budgetToDelete, setBudgetToDelete] = useState<Budget | null>(null);
   const [localSearch, setLocalSearch] = useState('');
 
   const handleShareWhatsApp = (b: Budget) => {
@@ -202,10 +203,11 @@ export function BudgetView({
   };
 
   const handleDelete = (budgetId: string) => {
-    if (confirm('¿Estás seguro de que deseas eliminar este presupuesto?')) {
-      if (onDeleteBudget) {
-        onDeleteBudget(budgetId);
-      }
+    const b = budgets.find((item) => item.id === budgetId);
+    if (b) {
+      setBudgetToDelete(b);
+    } else if (onDeleteBudget) {
+      onDeleteBudget(budgetId);
     }
   };
 
@@ -517,6 +519,42 @@ export function BudgetView({
       {/* Print Preview Modal */}
       {selectedForPrint && (
         <PrintBudgetModal budget={selectedForPrint} workshop={workshop} onClose={() => setSelectedForPrint(null)} />
+      )}
+
+      {/* Budget Deletion Modal */}
+      {budgetToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2 bg-rose-50 rounded-xl">
+                <Trash2 className="w-6 h-6 text-rose-600" />
+              </div>
+              <h3 className="font-bold text-base text-slate-900">¿Eliminar Presupuesto?</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              ¿Estás seguro de eliminar el presupuesto <strong className="text-slate-900">{budgetToDelete.numeroPresupuesto}</strong> de <strong className="text-slate-900">{budgetToDelete.clienteNombre}</strong>? Esta acción no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setBudgetToDelete(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (onDeleteBudget && budgetToDelete) {
+                    onDeleteBudget(budgetToDelete.id);
+                  }
+                  setBudgetToDelete(null);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+              >
+                Eliminar Presupuesto
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

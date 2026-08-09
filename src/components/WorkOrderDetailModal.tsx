@@ -55,6 +55,7 @@ export function WorkOrderDetailModal({
   const [nuevaTarea, setNuevaTarea] = useState('');
   const [manoObra, setManoObra] = useState(25000);
   const [selectedPartId, setSelectedPartId] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleAddService = () => {
     if (!nuevaTarea.trim()) return;
@@ -785,12 +786,7 @@ export function WorkOrderDetailModal({
               {onDeleteOrder && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (confirm(`¿Estás seguro de eliminar la Orden de Trabajo #${order.id}? esta acción no se puede deshacer.`)) {
-                      onDeleteOrder(order.id);
-                      onClose();
-                    }
-                  }}
+                  onClick={() => setShowDeleteConfirm(true)}
                   className="px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors flex items-center gap-1.5"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -820,6 +816,43 @@ export function WorkOrderDetailModal({
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal for Order Deletion inside Detail Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2 bg-rose-50 rounded-xl">
+                <Trash2 className="w-6 h-6 text-rose-600" />
+              </div>
+              <h3 className="font-bold text-base text-slate-900">¿Eliminar Orden de Trabajo?</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              ¿Estás seguro de eliminar la Orden de Trabajo <strong className="text-slate-900">{order.numeroOrden}</strong>? Esta acción borrará la orden de la base de datos y no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  if (onDeleteOrder) {
+                    onDeleteOrder(order.id);
+                  }
+                  onClose();
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-xs transition-colors"
+              >
+                Sí, Eliminar Orden
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
