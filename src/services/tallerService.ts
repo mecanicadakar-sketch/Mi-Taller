@@ -12,7 +12,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Client, InventoryItem, WorkOrder, Budget, Workshop, OrderStatus, Mechanic } from '../types/tallerya';
+import { Client, InventoryItem, WorkOrder, Budget, Workshop, OrderStatus, Mechanic, PricingSettings } from '../types/tallerya';
 import { INITIAL_CLIENTS, INITIAL_INVENTORY, INITIAL_WORK_ORDERS, INITIAL_BUDGETS, INITIAL_MECHANICS } from '../data/mockData';
 
 // Workshop profile
@@ -1139,6 +1139,66 @@ export async function validateAndApplyLicenseCodeInFirestore(
   } catch (err) {
     console.warn('Error validating license code:', err);
     return { success: false, message: 'Error de conexión al validar la licencia. Intenta nuevamente.' };
+  }
+}
+
+// ---------------------------------------------------------
+// PRICING & PLAN CONFIGURATION (USD & PYG Exchange Rate)
+// ---------------------------------------------------------
+export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
+  exchangeRateUsdToPyg: 7500,
+  basicoPriceUsd: 15,
+  basicoPricePyg: 100000,
+  proPriceUsd: 29,
+  proPricePyg: 200000,
+  anualPriceUsd: 290,
+  anualPricePyg: 2000000,
+};
+
+export async function getPricingSettings(): Promise<PricingSettings> {
+  const LOCAL_KEY = 'mitaller_pricing_settings';
+  let localData: PricingSettings = DEFAULT_PRICING_SETTINGS;
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY);
+    if (raw) {
+      localData = { ...DEFAULT_PRICING_SETTINGS, ...JSON.parse(raw) };
+    }
+  } catch (e) {}
+
+  try {
+    const docRef = doc(db, 'settings', 'pricing');
+    const snap = await fetchFromFirestore(getDoc(docRef), 5000);
+    if (snap.exists()) {
+      const remote = snap.data() as PricingSettings;
+      const merged = { ...DEFAULT_PRICING_SETTINGS, ...remote };
+      try {
+        localStorage.setItem(LOCAL_KEY, JSON.stringify(merged));
+      } catch (e) {}
+      return merged;
+    }
+  } catch (err) {
+    console.warn('Could not fetch pricing settings from Firestore, using local fallback:', err);
+  }
+
+  return localData;
+}
+
+export async function savePricingSettings(settings: PricingSettings): Promise<void> {
+  const LOCAL_KEY = 'mitaller_pricing_settings';
+  const dataToSave = {
+    ...settings,
+    updatedAt: new Date().toISOString()
+  };
+
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(dataToSave));
+  } catch (e) {}
+
+  try {
+    const docRef = doc(db, 'settings', 'pricing');
+    await setDoc(docRef, sanitizeForFirestore(dataToSave), { merge: true });
+  } catch (err) {
+    console.warn('Error saving pricing settings to Firestore:', err);
   }
 }
 

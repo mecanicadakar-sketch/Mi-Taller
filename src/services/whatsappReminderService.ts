@@ -62,13 +62,15 @@ export function resolveProximoKm(
   rawProximo?: number,
   intervalo = 10000
 ): number {
+  const chosenInterval = (intervalo && intervalo > 0) ? intervalo : 10000;
+
   if (rawProximo && rawProximo > baseKm) {
     return rawProximo;
   }
-  if (rawProximo && rawProximo > 0 && rawProximo <= 35000) {
+  if (rawProximo && rawProximo > 0 && rawProximo <= 50000) {
     return baseKm + rawProximo;
   }
-  return baseKm > 0 ? baseKm + (intervalo || 10000) : (rawProximo || 10000);
+  return baseKm > 0 ? baseKm + chosenInterval : (rawProximo || chosenInterval);
 }
 
 /**
@@ -81,6 +83,22 @@ export function calculateReminders(
 ): MaintenanceReminderItem[] {
   const reminders: MaintenanceReminderItem[] = [];
   const processedVehicleKeys = new Set<string>();
+
+  // Helper to extract timestamp for sorting orders newest-first
+  const getOrderTimestamp = (wo: WorkOrder): number => {
+    if (wo.fechaIngreso) {
+      const t = new Date(wo.fechaIngreso).getTime();
+      if (!isNaN(t)) return t;
+    }
+    if (wo.id && wo.id.startsWith('wo_')) {
+      const parsed = Number(wo.id.replace('wo_', ''));
+      if (!isNaN(parsed) && parsed > 1000000000000) return parsed;
+    }
+    return 0;
+  };
+
+  // Sort work orders descending (newest first)
+  const sortedWorkOrders = [...workOrders].sort((a, b) => getOrderTimestamp(b) - getOrderTimestamp(a));
 
   // Map to find highest km vehicle info across clients and work orders
   const vehicleMaxKm = new Map<string, number>();
@@ -96,7 +114,7 @@ export function calculateReminders(
     });
   });
 
-  workOrders.forEach((wo) => {
+  sortedWorkOrders.forEach((wo) => {
     const patente = wo.vehiculo?.patente?.trim().toUpperCase();
     if (patente && patente !== 'S/P') {
       const current = vehicleMaxKm.get(patente) || 0;
@@ -107,39 +125,47 @@ export function calculateReminders(
     }
   });
 
-  // Process work orders with maintenance checklists or date records
-  workOrders.forEach((wo) => {
+  // Process work orders (newest order first per vehicle)
+  sortedWorkOrders.forEach((wo) => {
     const patente = wo.vehiculo?.patente?.trim().toUpperCase() || '';
-    const vehicleKey = patente && patente !== 'S/P' ? patente : `${wo.clienteNombre}_${wo.vehiculo.marca}_${wo.vehiculo.modelo}`;
+    const vehicleKey = patente && patente !== 'S/P'
+      ? patente
+      : `${(wo.clienteNombre || '').toLowerCase().trim()}_${(wo.vehiculo?.marca || '').toLowerCase().trim()}_${(wo.vehiculo?.modelo || '').toLowerCase().trim()}`;
 
     if (processedVehicleKeys.has(vehicleKey)) return;
 
-    const kmActuales = vehicleMaxKm.get(patente) || wo.vehiculo.kilometraje || 0;
-    const ultimoKm = wo.vehiculo.kilometraje || kmActuales;
-    const baseKm = Math.max(ultimoKm || 0, kmActuales || 0);
+    // Mileage at the time of THIS specific work order / service
+    const ultimoKm = wo.vehiculo?.kilometraje || 0;
+    // Highest known current mileage for this vehicle across all records
+    const kmActuales = Math.max(vehicleMaxKm.get(patente) || 0, ultimoKm);
 
     const rawProximo = wo.mantenimiento?.proximoKmService;
     const intervalo = wo.mantenimiento?.intervaloKm || 10000;
 
-    const proximoKm = resolveProximoKm(baseKm, rawProximo, intervalo);
+    // Calculate next service target based on last service mileage (ultimoKm)
+    const proximoKm = resolveProximoKm(ultimoKm, rawProximo, intervalo);
 
     if (proximoKm <= 0 && kmActuales <= 0) return;
 
     const diferenciaKm = proximoKm - kmActuales;
     
-    // Calculate days since service
+    // Calculate days since this service accurately
     let diasDesdeUltimo = 0;
     if (wo.fechaIngreso) {
       const fechaIngresoDate = new Date(wo.fechaIngreso);
-      const hoy = new Date();
-      const diffTime = Math.abs(hoy.getTime() - fechaIngresoDate.getTime());
-      diasDesdeUltimo = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (!isNaN(fechaIngresoDate.getTime())) {
+        const hoy = new Date();
+        const todayZero = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime();
+        const ingresoZero = new Date(fechaIngresoDate.getFullYear(), fechaIngresoDate.getMonth(), fechaIngresoDate.getDate()).getTime();
+        const diffMs = todayZero - ingresoZero;
+        diasDesdeUltimo = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+      }
     }
 
     // Determine status
     let estadoRecordatorio: 'overdue' | 'due_soon' | 'upcoming' | null = null;
 
-    if (diferenciaKm <= 0 || diasDesdeUltimo > 180) {
+    if (diferenciaKm <= 0 || diasDesdeUltimo >= 180) {
       estadoRecordatorio = 'overdue';
     } else if (diferenciaKm <= thresholdKm || diasDesdeUltimo >= 150) {
       estadoRecordatorio = 'due_soon';
@@ -169,7 +195,7 @@ export function calculateReminders(
   clients.forEach((c) => {
     c.vehiculos.forEach((v) => {
       const patente = v.patente?.trim().toUpperCase() || '';
-      const vehicleKey = patente && patente !== 'S/P' ? patente : `${c.nombre}_${v.marca}_${v.modelo}`;
+      const vehicleKey = patente && patente !== 'S/P' ? patente : `${(c.nombre || '').toLowerCase().trim()}_${(v.marca || '').toLowerCase().trim()}_${(v.modelo || '').toLowerCase().trim()}`;
 
       if (processedVehicleKeys.has(vehicleKey)) return;
 
@@ -186,7 +212,7 @@ export function calculateReminders(
             clientNombre: c.nombre,
             clientTelefono: c.telefono,
             vehiculo: v,
-            ultimoServiceKm: kmActuales - (10000 - diff),
+            ultimoServiceKm: Math.max(0, kmActuales - (10000 - diff)),
             ultimoServiceFecha: '',
             proximoKmService: nextTarget,
             kmActuales,
@@ -215,9 +241,9 @@ export function buildWhatsAppMessage(
 
   let kmInfo = '';
   if (reminder.diferenciaKm <= 0) {
-    kmInfo = `ya ha superado su kilometraje de mantenimiento programado (Próximo: ${reminder.proximoKmService.toLocaleString()} km - Actual: ${reminder.kmActuales.toLocaleString()} km).`;
+    kmInfo = `ya ha alcanzado/superado su kilometraje de mantenimiento programado (Próximo objetivo: ${reminder.proximoKmService.toLocaleString('es-PY')} km | Kilometraje actual: ${reminder.kmActuales.toLocaleString('es-PY')} km).`;
   } else {
-    kmInfo = `se encuentra a solo ${reminder.diferenciaKm.toLocaleString()} km de cumplir su próximo mantenimiento de ${reminder.proximoKmService.toLocaleString()} km.`;
+    kmInfo = `se encuentra a solo ${reminder.diferenciaKm.toLocaleString('es-PY')} km de cumplir su próximo mantenimiento de ${reminder.proximoKmService.toLocaleString('es-PY')} km (Kilometraje actual: ${reminder.kmActuales.toLocaleString('es-PY')} km).`;
   }
 
   let text = `👋 Hola *${reminder.clientNombre}*, le saludamos de *${tallerNombre}*.\n\n`;
@@ -228,7 +254,7 @@ export function buildWhatsAppMessage(
     text += `📝 *Nota adicional:* ${customNote}\n\n`;
   }
 
-  text += `📲 ¿Le gustaría agendar un turno para esta semana? Responda a este mensaje y con gusto le reservaremos un horario. ¡Saludos!`;
+  text += `📲 ¿Le gustaría agendar un turno para esta semana? Responda a este mensaje y con gusto le reservaremos un horario. ¡Muchas gracias!`;
 
   return text;
 }

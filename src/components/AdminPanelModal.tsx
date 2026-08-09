@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Workshop } from '../types/tallerya';
+import { Workshop, PricingSettings } from '../types/tallerya';
 import {
   getAllWorkshops,
   adminUpdateWorkshopSubscription,
   adminDeleteWorkshop,
   createLicenseCodeInFirestore,
   getAllLicenseCodesFromFirestore,
-  LicenseCodeDoc
+  LicenseCodeDoc,
+  getPricingSettings,
+  savePricingSettings,
+  DEFAULT_PRICING_SETTINGS
 } from '../services/tallerService';
 import {
   ShieldAlert,
@@ -28,7 +31,11 @@ import {
   Calendar,
   AlertCircle,
   Mail,
-  Trash2
+  Trash2,
+  DollarSign,
+  Coins,
+  Save,
+  Calculator
 } from 'lucide-react';
 
 interface AdminPanelModalProps {
@@ -46,9 +53,11 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
   // Data states
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [licenses, setLicenses] = useState<LicenseCodeDoc[]>([]);
+  const [pricingForm, setPricingForm] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS);
+  const [savingPrices, setSavingPrices] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'workshops' | 'licenses'>('workshops');
+  const [activeTab, setActiveTab] = useState<'workshops' | 'licenses' | 'prices'>('workshops');
 
   // License creation state
   const [newCodeCustom, setNewCodeCustom] = useState('');
@@ -79,17 +88,49 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
     setActionSuccess('');
     setActionError('');
     try {
-      const [wList, lList] = await Promise.all([
+      const [wList, lList, priceData] = await Promise.all([
         getAllWorkshops(),
         getAllLicenseCodesFromFirestore(),
+        getPricingSettings()
       ]);
       setWorkshops(wList);
       setLicenses(lList);
+      setPricingForm(priceData);
     } catch (err: any) {
       console.warn('Error loading admin data:', err);
       setActionError('Error al cargar datos desde Firestore: ' + (err.message || String(err)));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAutoCalculatePyg = () => {
+    const rate = pricingForm.exchangeRateUsdToPyg || 7500;
+    // Round to nearest 5000 or 10000 PYG for clean local pricing
+    const calcPyg = (usd: number) => Math.round((usd * rate) / 5000) * 5000;
+
+    setPricingForm((prev) => ({
+      ...prev,
+      basicoPricePyg: calcPyg(prev.basicoPriceUsd),
+      proPricePyg: calcPyg(prev.proPriceUsd),
+      anualPricePyg: calcPyg(prev.anualPriceUsd)
+    }));
+    setActionSuccess(`Precios en Guaraníes recalculados según cotización del Dólar ($1 USD = ${rate.toLocaleString('es-PY')} PYG).`);
+  };
+
+  const handleSavePricing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingPrices(true);
+    setActionSuccess('');
+    setActionError('');
+    try {
+      await savePricingSettings(pricingForm);
+      setActionSuccess('¡Precios de Planes y Cotización guardados exitosamente en Firebase!');
+    } catch (err: any) {
+      console.error('Error saving pricing:', err);
+      setActionError('Error al guardar precios: ' + (err.message || String(err)));
+    } finally {
+      setSavingPrices(false);
     }
   };
 
@@ -318,6 +359,18 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
                 >
                   <Key className="w-4 h-4" />
                   <span>Generar / Ver Codigos PRO ({licenses.length})</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('prices')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                    activeTab === 'prices'
+                      ? 'bg-amber-500 text-slate-950 shadow-md'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Coins className="w-4 h-4 text-emerald-400" />
+                  <span>Precios & Cotización Dólar</span>
                 </button>
               </div>
 
@@ -677,6 +730,193 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
                     )}
                   </div>
                 </div>
+              )}
+
+              {/* TAB 3: Pricing Settings ($ USD & PYG Exchange Rate) */}
+              {activeTab === 'prices' && (
+                <form onSubmit={handleSavePricing} className="space-y-6">
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                      <div>
+                        <h3 className="text-base font-bold text-white flex items-center gap-2">
+                          <Coins className="w-5 h-5 text-emerald-400" />
+                          Cotización del Dólar y Configuración de Precios
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Ajusta los precios de los planes en Dólares (USD) y la equivalencia estimada en Guaraníes (PYG) para Paraguay.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleAutoCalculatePyg}
+                        className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl border border-amber-500/30 transition-colors flex items-center gap-2"
+                      >
+                        <Calculator className="w-4 h-4 text-amber-400" />
+                        <span>Recalcular PYG con Cotización</span>
+                      </button>
+                    </div>
+
+                    {/* Exchange Rate Card */}
+                    <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 mb-1">
+                          Tipo de Cambio / Cotización (1 USD a PYG)
+                        </label>
+                        <p className="text-[11px] text-slate-400 mb-2">
+                          Ejemplo: Si $1 USD equivale a 7.500 Guaraníes, ingresa 7500.
+                        </p>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-amber-400 font-bold text-xs">Gs.</span>
+                          <input
+                            type="number"
+                            value={pricingForm.exchangeRateUsdToPyg || ''}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => setPricingForm({ ...pricingForm, exchangeRateUsdToPyg: e.target.value === '' ? 0 : Number(e.target.value) })}
+                            className="w-full pl-10 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono font-bold text-sm focus:border-amber-400 focus:outline-hidden"
+                            placeholder="7500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="bg-amber-950/30 border border-amber-800/40 p-3 rounded-xl text-xs text-amber-200/90 leading-relaxed">
+                        <p className="font-bold flex items-center gap-1.5 text-amber-300 mb-1">
+                          <Sparkles className="w-4 h-4 text-amber-400" />
+                          Flexibilidad de Precios en Paraguay
+                        </p>
+                        Puedes modificar los precios manualmente o pulsar <strong>"Recalcular PYG con Cotización"</strong> para actualizar automáticamente las referencias en Guaraníes de todos los planes.
+                      </div>
+                    </div>
+
+                    {/* Plans Pricing Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                      {/* Plan Básico */}
+                      <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                          <span className="text-xs font-bold uppercase text-slate-300">Plan Básico / Inicial</span>
+                          <span className="text-[10px] font-bold bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md">Mensual</span>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Precio en USD ($)</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-slate-400 font-bold text-xs">$</span>
+                            <input
+                              type="number"
+                              value={pricingForm.basicoPriceUsd || ''}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => setPricingForm({ ...pricingForm, basicoPriceUsd: e.target.value === '' ? 0 : Number(e.target.value) })}
+                              className="w-full pl-7 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono text-sm font-bold focus:border-amber-400 focus:outline-hidden"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Referencia Estimada PYG (Gs.)</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-amber-400 font-bold text-xs">Gs.</span>
+                            <input
+                              type="number"
+                              value={pricingForm.basicoPricePyg || ''}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => setPricingForm({ ...pricingForm, basicoPricePyg: e.target.value === '' ? 0 : Number(e.target.value) })}
+                              className="w-full pl-10 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-amber-300 font-mono text-sm font-bold focus:border-amber-400 focus:outline-hidden"
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-1">Muestra: ~ {pricingForm.basicoPricePyg.toLocaleString('es-PY')} PYG al mes</p>
+                        </div>
+                      </div>
+
+                      {/* Plan PRO */}
+                      <div className="bg-slate-950 p-4 rounded-xl border-2 border-amber-500/60 space-y-3 relative">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                          <span className="text-xs font-bold uppercase text-amber-400 flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5" /> Plan PRO Taller
+                          </span>
+                          <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md">Popular</span>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Precio en USD ($)</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-slate-400 font-bold text-xs">$</span>
+                            <input
+                              type="number"
+                              value={pricingForm.proPriceUsd || ''}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => setPricingForm({ ...pricingForm, proPriceUsd: e.target.value === '' ? 0 : Number(e.target.value) })}
+                              className="w-full pl-7 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono text-sm font-bold focus:border-amber-400 focus:outline-hidden"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Referencia Estimada PYG (Gs.)</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-amber-400 font-bold text-xs">Gs.</span>
+                            <input
+                              type="number"
+                              value={pricingForm.proPricePyg || ''}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => setPricingForm({ ...pricingForm, proPricePyg: e.target.value === '' ? 0 : Number(e.target.value) })}
+                              className="w-full pl-10 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-amber-300 font-mono text-sm font-bold focus:border-amber-400 focus:outline-hidden"
+                            />
+                          </div>
+                          <p className="text-[10px] text-amber-400/80 mt-1">Muestra: ~ {pricingForm.proPricePyg.toLocaleString('es-PY')} PYG al mes</p>
+                        </div>
+                      </div>
+
+                      {/* Plan Anual */}
+                      <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                          <span className="text-xs font-bold uppercase text-slate-300">Plan Anual PRO</span>
+                          <span className="text-[10px] font-bold bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded-md">Anual</span>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Precio en USD ($ / año)</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-slate-400 font-bold text-xs">$</span>
+                            <input
+                              type="number"
+                              value={pricingForm.anualPriceUsd || ''}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => setPricingForm({ ...pricingForm, anualPriceUsd: e.target.value === '' ? 0 : Number(e.target.value) })}
+                              className="w-full pl-7 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white font-mono text-sm font-bold focus:border-amber-400 focus:outline-hidden"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">Referencia Estimada PYG (Gs.)</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-amber-400 font-bold text-xs">Gs.</span>
+                            <input
+                              type="number"
+                              value={pricingForm.anualPricePyg || ''}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => setPricingForm({ ...pricingForm, anualPricePyg: e.target.value === '' ? 0 : Number(e.target.value) })}
+                              className="w-full pl-10 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-amber-300 font-mono text-sm font-bold focus:border-amber-400 focus:outline-hidden"
+                            />
+                          </div>
+                          <p className="text-[10px] text-emerald-400 mt-1">Muestra: ~ {pricingForm.anualPricePyg.toLocaleString('es-PY')} PYG al año</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="flex justify-end pt-3 border-t border-slate-800">
+                      <button
+                        type="submit"
+                        disabled={savingPrices}
+                        className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-lg transition-colors flex items-center gap-2 cursor-pointer"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>{savingPrices ? 'Guardando en Firebase...' : 'Guardar Nuevos Precios en Firebase'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </form>
               )}
             </div>
 

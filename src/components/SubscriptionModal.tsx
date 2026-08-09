@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Workshop, SubscriptionInfo } from '../types/tallerya';
+import React, { useState, useEffect } from 'react';
+import { Workshop, SubscriptionInfo, PricingSettings } from '../types/tallerya';
+import { getPricingSettings, DEFAULT_PRICING_SETTINGS } from '../services/tallerService';
 import {
   ShieldCheck,
   Zap,
@@ -28,7 +29,14 @@ export function SubscriptionModal({
   workshop,
   onActivateLicense,
 }: SubscriptionModalProps) {
+  const [pricing, setPricing] = useState<PricingSettings>(DEFAULT_PRICING_SETTINGS);
   const [licenseCode, setLicenseCode] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      getPricingSettings().then((p) => setPricing(p));
+    }
+  }, [isOpen]);
   const [codeError, setCodeError] = useState('');
   const [codeSuccess, setCodeSuccess] = useState('');
   const [isActivating, setIsActivating] = useState(false);
@@ -241,9 +249,11 @@ export function SubscriptionModal({
                     </span>
                   </div>
                   <div className="mb-4">
-                    <span className="text-2xl font-black text-slate-900">$15</span>
+                    <span className="text-2xl font-black text-slate-900">${pricing.basicoPriceUsd}</span>
                     <span className="text-xs font-semibold text-slate-500"> / mes</span>
-                    <p className="text-[11px] font-semibold text-slate-400 mt-0.5">~ 100.000 PYG al mes</p>
+                    <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
+                      ~ {pricing.basicoPricePyg.toLocaleString('es-PY')} PYG al mes
+                    </p>
                   </div>
                   <ul className="space-y-2 text-xs text-slate-600 mb-6">
                     <li className="flex items-center gap-2">
@@ -266,14 +276,14 @@ export function SubscriptionModal({
                 </div>
                 <div className="space-y-2">
                   <button
-                    onClick={() => handleStartCardPayment('Plan Básico', '$15 USD', 15)}
+                    onClick={() => handleStartCardPayment('Plan Básico', `$${pricing.basicoPriceUsd} USD`, pricing.basicoPriceUsd)}
                     className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors text-center flex items-center justify-center gap-2"
                   >
                     <CreditCard className="w-4 h-4" />
-                    <span>Pagar $15 con Tarjeta</span>
+                    <span>Pagar ${pricing.basicoPriceUsd} con Tarjeta</span>
                   </button>
                   <a
-                    href={getWhatsAppUrl('Plan Básico ($15/mes)')}
+                    href={getWhatsAppUrl(`Plan Básico ($${pricing.basicoPriceUsd}/mes)`)}
                     target="_blank"
                     rel="noreferrer"
                     className="w-full py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] rounded-lg text-center block transition-colors"
@@ -294,9 +304,11 @@ export function SubscriptionModal({
                     <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Plan PRO Taller</span>
                   </div>
                   <div className="mb-4">
-                    <span className="text-3xl font-black text-white">$29</span>
+                    <span className="text-3xl font-black text-white">${pricing.proPriceUsd}</span>
                     <span className="text-xs font-semibold text-slate-400"> / mes</span>
-                    <p className="text-[11px] font-semibold text-amber-300/80 mt-0.5">~ 200.000 PYG al mes</p>
+                    <p className="text-[11px] font-semibold text-amber-300/80 mt-0.5">
+                      ~ {pricing.proPricePyg.toLocaleString('es-PY')} PYG al mes
+                    </p>
                   </div>
                   <ul className="space-y-2.5 text-xs text-slate-200 mb-6">
                     <li className="flex items-center gap-2 font-semibold text-amber-300">
@@ -323,14 +335,14 @@ export function SubscriptionModal({
                 </div>
                 <div className="space-y-2">
                   <button
-                    onClick={() => handleStartCardPayment('Plan PRO Taller', '$29 USD', 29)}
+                    onClick={() => handleStartCardPayment('Plan PRO Taller', `$${pricing.proPriceUsd} USD`, pricing.proPriceUsd)}
                     className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-colors text-center flex items-center justify-center gap-2"
                   >
                     <CreditCard className="w-4 h-4 text-slate-950" />
-                    <span>Pagar $29 con Tarjeta Online</span>
+                    <span>Pagar ${pricing.proPriceUsd} con Tarjeta Online</span>
                   </button>
                   <a
-                    href={getWhatsAppUrl('Plan PRO ($29/mes)')}
+                    href={getWhatsAppUrl(`Plan PRO ($${pricing.proPriceUsd}/mes)`)}
                     target="_blank"
                     rel="noreferrer"
                     className="w-full py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-[11px] rounded-lg text-center block transition-colors"
@@ -350,9 +362,11 @@ export function SubscriptionModal({
                     </span>
                   </div>
                   <div className="mb-4">
-                    <span className="text-2xl font-black text-slate-900">$290</span>
+                    <span className="text-2xl font-black text-slate-900">${pricing.anualPriceUsd}</span>
                     <span className="text-xs font-semibold text-slate-500"> / año</span>
-                    <p className="text-[11px] font-semibold text-emerald-600 mt-0.5">Ahorras $58 USD al año</p>
+                    <p className="text-[11px] font-semibold text-emerald-600 mt-0.5">
+                      ~ {pricing.anualPricePyg.toLocaleString('es-PY')} PYG al año
+                    </p>
                   </div>
                   <ul className="space-y-2 text-xs text-slate-600 mb-6">
                     <li className="flex items-center gap-2">
@@ -371,14 +385,14 @@ export function SubscriptionModal({
                 </div>
                 <div className="space-y-2">
                   <button
-                    onClick={() => handleStartCardPayment('Plan Anual PRO', '$290 USD', 290)}
+                    onClick={() => handleStartCardPayment('Plan Anual PRO', `$${pricing.anualPriceUsd} USD`, pricing.anualPriceUsd)}
                     className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors text-center flex items-center justify-center gap-2"
                   >
                     <CreditCard className="w-4 h-4" />
-                    <span>Pagar $290 con Tarjeta</span>
+                    <span>Pagar ${pricing.anualPriceUsd} con Tarjeta</span>
                   </button>
                   <a
-                    href={getWhatsAppUrl('Plan ANUAL PRO ($290/año)')}
+                    href={getWhatsAppUrl(`Plan ANUAL PRO ($${pricing.anualPriceUsd}/año)`)}
                     target="_blank"
                     rel="noreferrer"
                     className="w-full py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] rounded-lg text-center block transition-colors"

@@ -1,3 +1,14 @@
+export interface PricingSettings {
+  exchangeRateUsdToPyg: number;
+  basicoPriceUsd: number;
+  basicoPricePyg: number;
+  proPriceUsd: number;
+  proPricePyg: number;
+  anualPriceUsd: number;
+  anualPricePyg: number;
+  updatedAt?: string;
+}
+
 export type OrderStatus = 'ingresado' | 'diagnostico' | 'reparacion' | 'repuestos' | 'listo' | 'entregado';
 
 export type SubscriptionPlan = 'trial' | 'basico' | 'pro' | 'enterprise';

@@ -308,6 +308,10 @@ export function WhatsAppReminderModal({
                   <option value={1000}>1.000 km</option>
                   <option value={2000}>2.000 km</option>
                   <option value={5000}>5.000 km</option>
+                  <option value={7000}>7.000 km</option>
+                  <option value={10000}>10.000 km</option>
+                  <option value={50000}>50.000 km</option>
+                  <option value={100000}>100.000 km</option>
                 </select>
               </div>
             </div>
@@ -372,29 +376,35 @@ export function WhatsAppReminderModal({
                         <span>
                           <strong>Vehículo:</strong> {item.vehiculo.marca} {item.vehiculo.modelo} ({item.vehiculo.patente || 'S/P'})
                         </span>
+                        {item.ultimoServiceKm > 0 && (
+                          <span>
+                            <strong>Último Service:</strong> {item.ultimoServiceKm.toLocaleString('es-PY')} km
+                            {item.ultimoServiceFecha ? ` (${new Date(item.ultimoServiceFecha).toLocaleDateString('es-PY')})` : ''}
+                          </span>
+                        )}
                         <span>
-                          <strong>Km Actual:</strong> {item.kmActuales.toLocaleString()} km
+                          <strong>Km Actual:</strong> {item.kmActuales.toLocaleString('es-PY')} km
                         </span>
                         <span>
-                          <strong>Próximo Service:</strong> {item.proximoKmService.toLocaleString()} km
+                          <strong>Objetivo Próximo:</strong> {item.proximoKmService.toLocaleString('es-PY')} km
                         </span>
                       </div>
 
-                      <div className="text-xs text-slate-400 flex items-center gap-2">
+                      <div className="text-xs text-slate-400 flex items-center gap-2 flex-wrap">
                         {item.diferenciaKm <= 0 ? (
                           <span className="text-red-400 font-semibold">
-                            ⚠️ Excedido por {Math.abs(item.diferenciaKm).toLocaleString()} km
+                            ⚠️ Excedido por {Math.abs(item.diferenciaKm).toLocaleString('es-PY')} km
                           </span>
                         ) : (
                           <span className="text-amber-400 font-semibold">
-                            ⏳ Faltan {item.diferenciaKm.toLocaleString()} km para el service
+                            ⏳ Faltan {item.diferenciaKm.toLocaleString('es-PY')} km para el service
                           </span>
                         )}
-                        {item.diasDesdeUltimoService > 0 && (
-                          <span className="text-slate-500">
-                            (Hace {item.diasDesdeUltimoService} días del último ingreso)
-                          </span>
-                        )}
+                        <span className="text-slate-500">
+                          {item.diasDesdeUltimoService === 0
+                            ? '(Último ingreso registrado hoy)'
+                            : `(Hace ${item.diasDesdeUltimoService} días del último servicio)`}
+                        </span>
                       </div>
                     </div>
 
