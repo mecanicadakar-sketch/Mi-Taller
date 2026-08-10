@@ -1,0 +1,102 @@
+{
+  "entities": {
+    "workshops": {
+      "title": "Workshops",
+      "description": "Information and settings for registered auto repair shops",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombreTaller": { "type": "string" },
+        "nombreOwner": { "type": "string" },
+        "email": { "type": "string" },
+        "telefono": { "type": "string" },
+        "direccion": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "subscription": { "type": "object" }
+      },
+      "required": ["id", "nombreTaller", "email"]
+    },
+    "clients": {
+      "title": "Clients",
+      "description": "Clients belonging to a workshop",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tallerId": { "type": "string" },
+        "nombre": { "type": "string" },
+        "telefono": { "type": "string" },
+        "email": { "type": "string" },
+        "vehiculos": { "type": "array" }
+      },
+      "required": ["id", "tallerId", "nombre"]
+    },
+    "workOrders": {
+      "title": "Work Orders",
+      "description": "Work orders belonging to a workshop",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tallerId": { "type": "string" },
+        "numeroOrden": { "type": "string" },
+        "estado": { "type": "string" },
+        "clienteId": { "type": "string" },
+        "clienteNombre": { "type": "string" }
+      },
+      "required": ["id", "tallerId", "numeroOrden", "estado"]
+    },
+    "inventory": {
+      "title": "Inventory Items",
+      "description": "Spare parts and stock belonging to a workshop",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tallerId": { "type": "string" },
+        "codigo": { "type": "string" },
+        "nombre": { "type": "string" },
+        "stockActual": { "type": "number" },
+        "precioVenta": { "type": "number" }
+      },
+      "required": ["id", "tallerId", "nombre"]
+    },
+    "budgets": {
+      "title": "Budgets",
+      "description": "Estimates and quotes belonging to a workshop",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tallerId": { "type": "string" },
+        "numeroPresupuesto": { "type": "string" }
+      },
+      "required": ["id", "tallerId", "numeroPresupuesto"]
+    },
+    "mechanics": {
+      "title": "Mechanics",
+      "description": "Mechanics and staff belonging to a workshop",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tallerId": { "type": "string" },
+        "nombre": { "type": "string" },
+        "especialidad": { "type": "string" },
+        "telefono": { "type": "string" },
+        "activo": { "type": "boolean" }
+      },
+      "required": ["id", "tallerId", "nombre"]
+    },
+    "licenses": {
+      "title": "License Codes",
+      "description": "Activation license codes created by SuperAdmin for workshops",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "plan": { "type": "string" },
+        "days": { "type": "number" },
+        "used": { "type": "boolean" },
+        "usedByTallerId": { "type": "string" },
+        "usedAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["code", "plan", "used"]
+    }
+  }
+}
