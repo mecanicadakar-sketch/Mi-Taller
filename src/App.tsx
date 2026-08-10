@@ -39,6 +39,7 @@ import { AdminPanelModal } from './components/AdminPanelModal';
 import { InstallAppBanner } from './components/InstallAppBanner';
 import { GoogleSheetsImportModal } from './components/GoogleSheetsImportModal';
 import { WhatsAppReminderModal } from './components/WhatsAppReminderModal';
+import { DeleteDataModal } from './components/DeleteDataModal';
 import { deduplicateClients, deduplicateWorkOrders } from './services/googleDriveImportService';
 import { calculateReminders } from './services/whatsappReminderService';
 
@@ -107,6 +108,7 @@ export default function App() {
   const [showImportModal, setShowImportModal] = useState<false | boolean>(false);
   const [showGoogleSheetsModal, setShowGoogleSheetsModal] = useState<boolean>(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState<boolean>(false);
+  const [showDeleteDataModal, setShowDeleteDataModal] = useState<boolean>(false);
 
   const remindersCount = useMemo(() => {
     return calculateReminders(workOrders, clients, 1000).length;
@@ -134,36 +136,36 @@ export default function App() {
       const storedBudgets = localStorage.getItem('mitaller_guest_budgets');
       const storedMechanics = localStorage.getItem('mitaller_guest_mechanics');
 
-      if (storedClients) {
-        try { setClients(JSON.parse(storedClients)); } catch (e) { setClients(INITIAL_CLIENTS); }
+      if (storedClients !== null) {
+        try { setClients(JSON.parse(storedClients)); } catch (e) { setClients([]); }
       } else {
         setClients(INITIAL_CLIENTS);
         localStorage.setItem('mitaller_guest_clients', JSON.stringify(INITIAL_CLIENTS));
       }
 
-      if (storedInventory) {
-        try { setInventory(JSON.parse(storedInventory)); } catch (e) { setInventory(INITIAL_INVENTORY); }
+      if (storedInventory !== null) {
+        try { setInventory(JSON.parse(storedInventory)); } catch (e) { setInventory([]); }
       } else {
         setInventory(INITIAL_INVENTORY);
         localStorage.setItem('mitaller_guest_inventory', JSON.stringify(INITIAL_INVENTORY));
       }
 
-      if (storedWorkOrders) {
-        try { setWorkOrders(JSON.parse(storedWorkOrders)); } catch (e) { setWorkOrders(INITIAL_WORK_ORDERS); }
+      if (storedWorkOrders !== null) {
+        try { setWorkOrders(JSON.parse(storedWorkOrders)); } catch (e) { setWorkOrders([]); }
       } else {
         setWorkOrders(INITIAL_WORK_ORDERS);
         localStorage.setItem('mitaller_guest_workOrders', JSON.stringify(INITIAL_WORK_ORDERS));
       }
 
-      if (storedBudgets) {
-        try { setBudgets(JSON.parse(storedBudgets)); } catch (e) { setBudgets(INITIAL_BUDGETS); }
+      if (storedBudgets !== null) {
+        try { setBudgets(JSON.parse(storedBudgets)); } catch (e) { setBudgets([]); }
       } else {
         setBudgets(INITIAL_BUDGETS);
         localStorage.setItem('mitaller_guest_budgets', JSON.stringify(INITIAL_BUDGETS));
       }
 
-      if (storedMechanics) {
-        try { setMechanics(JSON.parse(storedMechanics)); } catch (e) { setMechanics(INITIAL_MECHANICS); }
+      if (storedMechanics !== null) {
+        try { setMechanics(JSON.parse(storedMechanics)); } catch (e) { setMechanics([]); }
       } else {
         setMechanics(INITIAL_MECHANICS);
         localStorage.setItem('mitaller_guest_mechanics', JSON.stringify(INITIAL_MECHANICS));
@@ -339,6 +341,136 @@ export default function App() {
     }
   };
 
+  const handleDeleteMultipleWorkOrders = async (orderIds: string[]) => {
+    if (!orderIds || orderIds.length === 0) return;
+    const idsSet = new Set(orderIds);
+    setWorkOrders((prev) => {
+      const next = prev.filter((o) => !idsSet.has(o.id));
+      const key = currentUser ? `mitaller_${currentUser.uid}_workOrders` : 'mitaller_guest_workOrders';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+    try {
+      const guestRaw = localStorage.getItem('mitaller_guest_workOrders');
+      if (guestRaw) {
+        const guestItems = JSON.parse(guestRaw);
+        if (Array.isArray(guestItems)) {
+          localStorage.setItem('mitaller_guest_workOrders', JSON.stringify(guestItems.filter((o: any) => !idsSet.has(o.id))));
+        }
+      }
+    } catch (e) {}
+
+    if (currentUser) {
+      for (const id of orderIds) {
+        try { await deleteWorkOrder(id); } catch (e) {}
+      }
+    }
+  };
+
+  const handleDeleteMultipleClients = async (clientIds: string[]) => {
+    if (!clientIds || clientIds.length === 0) return;
+    const idsSet = new Set(clientIds);
+    setClients((prev) => {
+      const next = prev.filter((c) => !idsSet.has(c.id));
+      const key = currentUser ? `mitaller_${currentUser.uid}_clients` : 'mitaller_guest_clients';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+    try {
+      const guestRaw = localStorage.getItem('mitaller_guest_clients');
+      if (guestRaw) {
+        const guestItems = JSON.parse(guestRaw);
+        if (Array.isArray(guestItems)) {
+          localStorage.setItem('mitaller_guest_clients', JSON.stringify(guestItems.filter((c: any) => !idsSet.has(c.id))));
+        }
+      }
+    } catch (e) {}
+
+    if (currentUser) {
+      for (const id of clientIds) {
+        try { await deleteClient(id); } catch (e) {}
+      }
+    }
+  };
+
+  const handleDeleteMultipleBudgets = async (budgetIds: string[]) => {
+    if (!budgetIds || budgetIds.length === 0) return;
+    const idsSet = new Set(budgetIds);
+    setBudgets((prev) => {
+      const next = prev.filter((b) => !idsSet.has(b.id));
+      const key = currentUser ? `mitaller_${currentUser.uid}_budgets` : 'mitaller_guest_budgets';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+    try {
+      const guestRaw = localStorage.getItem('mitaller_guest_budgets');
+      if (guestRaw) {
+        const guestItems = JSON.parse(guestRaw);
+        if (Array.isArray(guestItems)) {
+          localStorage.setItem('mitaller_guest_budgets', JSON.stringify(guestItems.filter((b: any) => !idsSet.has(b.id))));
+        }
+      }
+    } catch (e) {}
+
+    if (currentUser) {
+      for (const id of budgetIds) {
+        try { await deleteBudget(id); } catch (e) {}
+      }
+    }
+  };
+
+  const handleDeleteMultipleInventory = async (inventoryIds: string[]) => {
+    if (!inventoryIds || inventoryIds.length === 0) return;
+    const idsSet = new Set(inventoryIds);
+    setInventory((prev) => {
+      const next = prev.filter((i) => !idsSet.has(i.id));
+      const key = currentUser ? `mitaller_${currentUser.uid}_inventory` : 'mitaller_guest_inventory';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+    try {
+      const guestRaw = localStorage.getItem('mitaller_guest_inventory');
+      if (guestRaw) {
+        const guestItems = JSON.parse(guestRaw);
+        if (Array.isArray(guestItems)) {
+          localStorage.setItem('mitaller_guest_inventory', JSON.stringify(guestItems.filter((i: any) => !idsSet.has(i.id))));
+        }
+      }
+    } catch (e) {}
+
+    if (currentUser) {
+      for (const id of inventoryIds) {
+        try { await deleteInventoryItem(id); } catch (e) {}
+      }
+    }
+  };
+
+  const handleDeleteMultipleMechanics = async (mechanicIds: string[]) => {
+    if (!mechanicIds || mechanicIds.length === 0) return;
+    const idsSet = new Set(mechanicIds);
+    setMechanics((prev) => {
+      const next = prev.filter((m) => !idsSet.has(m.id));
+      const key = currentUser ? `mitaller_${currentUser.uid}_mechanics` : 'mitaller_guest_mechanics';
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+    try {
+      const guestRaw = localStorage.getItem('mitaller_guest_mechanics');
+      if (guestRaw) {
+        const guestItems = JSON.parse(guestRaw);
+        if (Array.isArray(guestItems)) {
+          localStorage.setItem('mitaller_guest_mechanics', JSON.stringify(guestItems.filter((m: any) => !idsSet.has(m.id))));
+        }
+      }
+    } catch (e) {}
+
+    if (currentUser) {
+      for (const id of mechanicIds) {
+        try { await deleteMechanic(id); } catch (e) {}
+      }
+    }
+  };
+
   const handleDeleteClient = async (clientId: string) => {
     setClients((prev) => {
       const next = prev.filter((c) => c.id !== clientId);
@@ -358,6 +490,74 @@ export default function App() {
 
     if (currentUser) {
       await deleteClient(clientId);
+    }
+  };
+
+  const handleBulkClearData = async (options: {
+    deleteWorkOrders: boolean;
+    deleteClients: boolean;
+    deleteBudgets: boolean;
+    deleteInventory: boolean;
+    deleteMechanics: boolean;
+  }) => {
+    if (options.deleteWorkOrders) {
+      if (currentUser) {
+        for (const wo of workOrders) {
+          try { await deleteWorkOrder(wo.id); } catch (e) {}
+        }
+      }
+      setWorkOrders([]);
+      const key = currentUser ? `mitaller_${currentUser.uid}_workOrders` : 'mitaller_guest_workOrders';
+      localStorage.setItem(key, JSON.stringify([]));
+      localStorage.setItem('mitaller_guest_workOrders', JSON.stringify([]));
+    }
+
+    if (options.deleteClients) {
+      if (currentUser) {
+        for (const c of clients) {
+          try { await deleteClient(c.id); } catch (e) {}
+        }
+      }
+      setClients([]);
+      const key = currentUser ? `mitaller_${currentUser.uid}_clients` : 'mitaller_guest_clients';
+      localStorage.setItem(key, JSON.stringify([]));
+      localStorage.setItem('mitaller_guest_clients', JSON.stringify([]));
+    }
+
+    if (options.deleteBudgets) {
+      if (currentUser) {
+        for (const b of budgets) {
+          try { await deleteBudget(b.id); } catch (e) {}
+        }
+      }
+      setBudgets([]);
+      const key = currentUser ? `mitaller_${currentUser.uid}_budgets` : 'mitaller_guest_budgets';
+      localStorage.setItem(key, JSON.stringify([]));
+      localStorage.setItem('mitaller_guest_budgets', JSON.stringify([]));
+    }
+
+    if (options.deleteInventory) {
+      if (currentUser) {
+        for (const item of inventory) {
+          try { await deleteInventoryItem(item.id); } catch (e) {}
+        }
+      }
+      setInventory([]);
+      const key = currentUser ? `mitaller_${currentUser.uid}_inventory` : 'mitaller_guest_inventory';
+      localStorage.setItem(key, JSON.stringify([]));
+      localStorage.setItem('mitaller_guest_inventory', JSON.stringify([]));
+    }
+
+    if (options.deleteMechanics) {
+      if (currentUser) {
+        for (const m of mechanics) {
+          try { await deleteMechanic(m.id); } catch (e) {}
+        }
+      }
+      setMechanics([]);
+      const key = currentUser ? `mitaller_${currentUser.uid}_mechanics` : 'mitaller_guest_mechanics';
+      localStorage.setItem(key, JSON.stringify([]));
+      localStorage.setItem('mitaller_guest_mechanics', JSON.stringify([]));
     }
   };
 
@@ -714,6 +914,7 @@ export default function App() {
           onOpenMechanicsModal={() => setShowMechanicsModal(true)}
           onOpenSubscriptionModal={() => setShowSubscriptionModal(true)}
           onOpenAdminPanel={() => setShowAdminPanelModal(true)}
+          onOpenDeleteData={() => setShowDeleteDataModal(true)}
           onInstallApp={() => setShowForceInstallModal(true)}
         />
       </div>
@@ -801,6 +1002,7 @@ export default function App() {
               }}
               onUpdateStatus={handleUpdateOrderStatus}
               onDeleteOrder={handleDeleteWorkOrder}
+              onDeleteMultipleOrders={handleDeleteMultipleWorkOrders}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               isSyncing={isSyncing}
@@ -1130,6 +1332,27 @@ export default function App() {
         workOrders={workOrders}
         clients={clients}
         tallerNombre={workshop?.nombreTaller || 'MiTaller Mecánico'}
+      />
+
+      <DeleteDataModal
+        isOpen={showDeleteDataModal}
+        onClose={() => setShowDeleteDataModal(false)}
+        workOrders={workOrders}
+        clients={clients}
+        budgets={budgets}
+        inventory={inventory}
+        mechanics={mechanics}
+        workOrdersCount={workOrders.length}
+        clientsCount={clients.length}
+        budgetsCount={budgets.length}
+        inventoryCount={inventory.length}
+        mechanicsCount={mechanics.length}
+        onClearData={handleBulkClearData}
+        onDeleteSpecificWorkOrders={handleDeleteMultipleWorkOrders}
+        onDeleteSpecificClients={handleDeleteMultipleClients}
+        onDeleteSpecificBudgets={handleDeleteMultipleBudgets}
+        onDeleteSpecificInventory={handleDeleteMultipleInventory}
+        onDeleteSpecificMechanics={handleDeleteMultipleMechanics}
       />
     </div>
   );

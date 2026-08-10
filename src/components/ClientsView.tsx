@@ -43,7 +43,7 @@ export function ClientsView({
   const [vehModelo, setVehModelo] = useState('');
   const [vehAnio, setVehAnio] = useState(2022);
   const [vehKm, setVehKm] = useState(50000);
-  const [vehCombustible, setVehCombustible] = useState('1/2');
+  const [vehCombustible, setVehCombustible] = useState<'1/4' | '1/2' | '3/4' | 'Lleno' | 'Reserva'>('1/2');
   const [vehFechaRegistro, setVehFechaRegistro] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
   // New Client Form State
@@ -707,7 +707,7 @@ export function ClientsView({
                   <label className="text-xs font-semibold text-slate-700">Nivel Combustible</label>
                   <select
                     value={vehCombustible}
-                    onChange={(e) => setVehCombustible(e.target.value)}
+                    onChange={(e) => setVehCombustible(e.target.value as any)}
                     className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   >
                     <option value="Reserva">Reserva</option>

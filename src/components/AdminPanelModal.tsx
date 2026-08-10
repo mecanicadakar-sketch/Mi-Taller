@@ -460,10 +460,10 @@ export function AdminPanelModal({ isOpen, onClose, currentUserEmail }: AdminPane
                                 <span className="text-slate-500 font-mono text-[11px]">{w.email}</span>
                               </div>
 
-                              {sub.subscriptionEndsAt && (
+                              {'subscriptionEndsAt' in sub && sub.subscriptionEndsAt && (
                                 <p className="text-[11px] text-slate-500 flex items-center gap-1">
                                   <Calendar className="w-3 h-3 text-slate-600" />
-                                  Vence: {new Date(sub.subscriptionEndsAt).toLocaleDateString()}
+                                  Vence: {new Date((sub as any).subscriptionEndsAt).toLocaleDateString()}
                                 </p>
                               )}
                             </div>

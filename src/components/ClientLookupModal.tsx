@@ -377,18 +377,21 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [] }: Cli
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-200">
-                                    {order.servicios.map((s) => (
-                                      <tr key={s.id}>
-                                        <td className="py-2 px-3 font-medium text-slate-800">
-                                          {s.descripcion}
-                                          <span className="ml-2 text-[10px] text-slate-600 uppercase">({s.tipo})</span>
-                                        </td>
-                                        <td className="py-2 px-3 text-center">{s.cantidad}</td>
-                                        <td className="py-2 px-3 text-right font-semibold text-slate-900">
-                                          ${(s.precioUnitario * s.cantidad).toLocaleString('es-AR')}
-                                        </td>
-                                      </tr>
-                                    ))}
+                                    {order.servicios.map((s) => {
+                                      const totalRepuestos = s.repuestosUtilizados?.reduce((acc, r) => acc + (r.cantidad * r.precioUnitario), 0) || 0;
+                                      const subtotal = (s.costoManoObra || 0) + totalRepuestos;
+                                      return (
+                                        <tr key={s.id}>
+                                          <td className="py-2 px-3 font-medium text-slate-800">
+                                            {s.descripcion}
+                                          </td>
+                                          <td className="py-2 px-3 text-center">1</td>
+                                          <td className="py-2 px-3 text-right font-semibold text-slate-900">
+                                            ${subtotal.toLocaleString('es-AR')}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               </div>

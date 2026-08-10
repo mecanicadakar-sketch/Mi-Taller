@@ -416,7 +416,7 @@ export function WorkOrderDetailModal({
                 <label className="text-[11px] font-semibold text-slate-600">Combustible</label>
                 <select
                   value={nivelCombustible}
-                  onChange={(e) => setNivelCombustible(e.target.value)}
+                  onChange={(e) => setNivelCombustible(e.target.value as any)}
                   className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg text-slate-900"
                 >
                   <option value="Reserva">Reserva</option>

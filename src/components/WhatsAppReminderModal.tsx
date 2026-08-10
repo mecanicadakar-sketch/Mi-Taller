@@ -45,7 +45,8 @@ export function WhatsAppReminderModal({
 }: WhatsAppReminderModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'overdue' | 'due_soon'>('all');
-  const [thresholdKm, setThresholdKm] = useState<number>(1000);
+  const [thresholdKm, setThresholdKm] = useState<number>(5000);
+  const [selectedIntervalFilter, setSelectedIntervalFilter] = useState<number | 'all'>('all');
   const [selectedReminder, setSelectedReminder] = useState<MaintenanceReminderItem | null>(null);
   const [customNote, setCustomNote] = useState('');
   const [showConfig, setShowConfig] = useState(false);
@@ -66,14 +67,26 @@ export function WhatsAppReminderModal({
 
   // Compute maintenance reminders dynamically
   const reminders = useMemo(() => {
-    return calculateReminders(workOrders, clients, thresholdKm);
-  }, [workOrders, clients, thresholdKm]);
+    return calculateReminders(workOrders, clients, 999999);
+  }, [workOrders, clients]);
 
   const filteredReminders = useMemo(() => {
     return reminders.filter((item) => {
       // Filter by type
       if (filterType === 'overdue' && item.estadoRecordatorio !== 'overdue') return false;
       if (filterType === 'due_soon' && item.estadoRecordatorio !== 'due_soon' && item.estadoRecordatorio !== 'upcoming') return false;
+
+      // Filter by thresholdKm (Margen)
+      if (thresholdKm < 999999) {
+        if (item.estadoRecordatorio !== 'overdue' && item.diferenciaKm > thresholdKm) {
+          return false;
+        }
+      }
+
+      // Filter by Intervalo
+      if (selectedIntervalFilter !== 'all') {
+        if (item.intervaloKm !== selectedIntervalFilter) return false;
+      }
 
       // Filter by search term
       if (!searchTerm) return true;
@@ -86,7 +99,7 @@ export function WhatsAppReminderModal({
 
       return matchClient || matchPhone || matchMarca || matchModelo || matchPatente;
     });
-  }, [reminders, filterType, searchTerm]);
+  }, [reminders, filterType, thresholdKm, selectedIntervalFilter, searchTerm]);
 
   const stats = useMemo(() => {
     const overdue = reminders.filter((r) => r.estadoRecordatorio === 'overdue').length;
@@ -294,25 +307,41 @@ export function WhatsAppReminderModal({
                 Próximos ({stats.dueSoon})
               </button>
 
-              <div className="h-4 w-px bg-slate-700 mx-1" />
+              <div className="h-4 w-px bg-slate-700 mx-1 hidden sm:block" />
 
               {/* Threshold Dropdown */}
               <div className="flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
-                <Sliders className="w-3.5 h-3.5" />
-                <span>Margen:</span>
+                <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                <span>Filtro Km:</span>
                 <select
                   value={thresholdKm}
                   onChange={(e) => setThresholdKm(Number(e.target.value))}
-                  className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white text-xs focus:outline-none"
+                  className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white text-xs font-semibold focus:outline-hidden focus:border-amber-400"
                 >
-                  <option value={500}>500 km</option>
-                  <option value={1000}>1.000 km</option>
-                  <option value={2000}>2.000 km</option>
-                  <option value={5000}>5.000 km</option>
-                  <option value={7000}>7.000 km</option>
-                  <option value={10000}>10.000 km</option>
-                  <option value={50000}>50.000 km</option>
-                  <option value={100000}>100.000 km</option>
+                  <option value={500}>Hasta 500 km</option>
+                  <option value={1000}>Hasta 1.000 km</option>
+                  <option value={2000}>Hasta 2.000 km</option>
+                  <option value={5000}>Hasta 5.000 km</option>
+                  <option value={10000}>Hasta 10.000 km</option>
+                  <option value={50000}>Hasta 50.000 km</option>
+                  <option value={999999}>Todos (Sin límite)</option>
+                </select>
+              </div>
+
+              {/* Service Interval Dropdown */}
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
+                <span>Tipo Service:</span>
+                <select
+                  value={selectedIntervalFilter}
+                  onChange={(e) => setSelectedIntervalFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-amber-300 text-xs font-bold focus:outline-hidden focus:border-amber-400"
+                >
+                  <option value="all">Todos los tipos</option>
+                  <option value={5000}>5.000 km (6 meses - Aceite)</option>
+                  <option value={10000}>10.000 km (12 meses - Aceite)</option>
+                  <option value={30000}>30.000 km (12 meses - Inyección)</option>
+                  <option value={50000}>50.000 km (24 meses - Caja AT)</option>
+                  <option value={100000}>100.000 km (36 meses - Distribución)</option>
                 </select>
               </div>
             </div>
