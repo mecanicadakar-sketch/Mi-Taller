@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="100" fill="#3B42A0"/>
+  
+  <!-- Top White Box -->
+  <rect x="76" y="108" width="360" height="48" rx="3" fill="#FFFFFF"/>
+  <text x="256" y="143" font-family="DejaVu Sans, Arial, sans-serif" font-weight="bold" font-size="34" fill="#3B42A0" text-anchor="middle">Mi Taller</text>
+  
+  <!-- T White Stem -->
+  <rect x="234" y="156" width="44" height="212" fill="#FFFFFF"/>
+  
+  <!-- M Yellow -->
+  <path d="M 76,156 H 116 L 141,250 L 166,156 H 206 V 368 H 166 V 252 L 141,335 L 116,252 V 368 H 76 Z" fill="#F0AF00"/>
+  
+  <!-- I Yellow -->
+  <rect x="364" y="156" width="52" height="212" fill="#F0AF00"/>
+</svg>
