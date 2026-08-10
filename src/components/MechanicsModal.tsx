@@ -12,7 +12,11 @@ import {
   Briefcase,
   AlertCircle,
   CheckCircle2,
-  Users
+  Users,
+  CheckSquare,
+  Square,
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 
 interface MechanicsModalProps {
@@ -21,6 +25,7 @@ interface MechanicsModalProps {
   mechanics: Mechanic[];
   onAddMechanic: (mechanic: Mechanic) => void;
   onDeleteMechanic: (id: string) => void;
+  onDeleteMultipleMechanics?: (ids: string[]) => Promise<void>;
   onToggleStatus: (id: string, currentStatus: boolean) => void;
 }
 
@@ -30,6 +35,7 @@ export function MechanicsModal({
   mechanics,
   onAddMechanic,
   onDeleteMechanic,
+  onDeleteMultipleMechanics,
   onToggleStatus,
 }: MechanicsModalProps) {
   const [nombre, setNombre] = useState('');
@@ -38,6 +44,11 @@ export function MechanicsModal({
   const [isCreating, setIsCreating] = useState(false);
   const [editingMechanic, setEditingMechanic] = useState<Mechanic | null>(null);
   const [mechanicToDelete, setMechanicToDelete] = useState<Mechanic | null>(null);
+
+  // Batch deletion state
+  const [selectedMechanicIds, setSelectedMechanicIds] = useState<string[]>([]);
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -77,9 +88,46 @@ export function MechanicsModal({
     setIsCreating(false);
   };
 
+  const toggleSelectMechanic = (id: string) => {
+    setSelectedMechanicIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const allAreSelected =
+    mechanics.length > 0 && mechanics.every((m) => selectedMechanicIds.includes(m.id));
+
+  const toggleSelectAll = () => {
+    if (allAreSelected) {
+      setSelectedMechanicIds([]);
+    } else {
+      setSelectedMechanicIds(mechanics.map((m) => m.id));
+    }
+  };
+
+  const handleConfirmBatchDelete = async () => {
+    if (selectedMechanicIds.length === 0) return;
+    setIsBatchDeleting(true);
+    try {
+      if (onDeleteMultipleMechanics) {
+        await onDeleteMultipleMechanics(selectedMechanicIds);
+      } else {
+        for (const id of selectedMechanicIds) {
+          await onDeleteMechanic(id);
+        }
+      }
+      setSelectedMechanicIds([]);
+      setShowBatchDeleteConfirm(false);
+    } catch (e) {
+      console.error('Error eliminando mecánicos en lote:', e);
+    } finally {
+      setIsBatchDeleting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[90vh] relative">
         {/* Modal Header */}
         <div className="bg-slate-900 text-white p-5 sm:p-6 relative shrink-0 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -193,9 +241,26 @@ export function MechanicsModal({
 
           {/* List of Mechanics */}
           <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
-              <span>Nómina de Personal ({mechanics.length})</span>
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Nómina de Personal ({mechanics.length})
+              </h3>
+
+              {mechanics.length > 0 && (
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  className="text-xs font-bold text-slate-600 hover:text-amber-600 flex items-center gap-1.5 transition-colors"
+                >
+                  {allAreSelected ? (
+                    <CheckSquare className="w-4 h-4 text-amber-500" />
+                  ) : (
+                    <Square className="w-4 h-4 text-slate-400" />
+                  )}
+                  <span>{allAreSelected ? 'Desmarcar Todos' : 'Marcar Todos'}</span>
+                </button>
+              )}
+            </div>
 
             {mechanics.length === 0 ? (
               <div className="bg-white p-6 rounded-xl border border-slate-200 text-center text-slate-500 text-xs">
@@ -203,23 +268,42 @@ export function MechanicsModal({
               </div>
             ) : (
               <div className="space-y-2">
-                {mechanics.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`bg-white p-3.5 rounded-xl border ${
-                      m.activo ? 'border-slate-200' : 'border-slate-200 bg-slate-100/60 opacity-60'
-                    } flex items-center justify-between gap-3 shadow-xs`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black ${
-                          m.activo
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-slate-200 text-slate-500'
-                        }`}
-                      >
-                        <Wrench className="w-5 h-5" />
-                      </div>
+                {mechanics.map((m) => {
+                  const isSelected = selectedMechanicIds.includes(m.id);
+
+                  return (
+                    <div
+                      key={m.id}
+                      className={`bg-white p-3.5 rounded-xl border transition-all ${
+                        isSelected
+                          ? 'border-red-400 bg-red-50/20 ring-1 ring-red-400'
+                          : m.activo
+                          ? 'border-slate-200'
+                          : 'border-slate-200 bg-slate-100/60 opacity-60'
+                      } flex items-center justify-between gap-3 shadow-xs`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleSelectMechanic(m.id)}
+                          className="text-slate-400 hover:text-red-500 transition-colors"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-5 h-5 text-red-500" />
+                          ) : (
+                            <Square className="w-5 h-5 text-slate-300" />
+                          )}
+                        </button>
+
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black ${
+                            m.activo
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-200 text-slate-500'
+                          }`}
+                        >
+                          <Wrench className="w-5 h-5" />
+                        </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-slate-900 text-sm">{m.nombre}</h4>
@@ -275,11 +359,91 @@ export function MechanicsModal({
                       </button>
                     </div>
                   </div>
-                ))}
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Floating Batch Bar for Mechanics */}
+      {selectedMechanicIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-4 animate-in slide-in-from-bottom duration-200">
+          <div className="flex items-center gap-2 font-bold text-xs">
+            <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+              {selectedMechanicIds.length}
+            </span>
+            <span>Personal seleccionado</span>
+          </div>
+
+          <div className="h-4 w-px bg-slate-700" />
+
+          <button
+            type="button"
+            onClick={() => setSelectedMechanicIds([])}
+            className="px-2.5 py-1.5 text-slate-400 hover:text-white font-semibold text-xs transition-colors"
+          >
+            Deseleccionar
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowBatchDeleteConfirm(true)}
+            className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Eliminar Seleccionados ({selectedMechanicIds.length})</span>
+          </button>
+        </div>
+      )}
+
+      {/* Batch Delete Mechanics Confirmation Modal */}
+      {showBatchDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-200 text-slate-900">
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="p-3 bg-red-50 rounded-2xl">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
-            )}
+              <div>
+                <h3 className="font-extrabold text-base text-slate-900">¿Eliminar Personal Seleccionado?</h3>
+                <p className="text-xs text-slate-500">
+                  Esta acción eliminará {selectedMechanicIds.length} mecánicos de la plantilla.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
+              Se eliminarán de forma permanente los registros de mecánicos seleccionados. ¿Deseas continuar?
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBatchDeleteConfirm(false)}
+                disabled={isBatchDeleting}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmBatchDelete}
+                disabled={isBatchDeleting}
+                className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-2"
+              >
+                {isBatchDeleting ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                <span>{isBatchDeleting ? 'Eliminando...' : 'Sí, Eliminar Seleccionados'}</span>
+              </button>
+            </div>
           </div>
         </div>
+      )}
 
         {/* Modal Footer */}
         <div className="p-4 bg-white border-t border-slate-200 flex justify-end">

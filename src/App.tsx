@@ -1015,6 +1015,7 @@ export default function App() {
               onAddClient={handleAddClient}
               onUpdateClient={handleAddClient}
               onDeleteClient={handleDeleteClient}
+              onDeleteMultipleClients={handleDeleteMultipleClients}
               onNewWorkOrderForVehicle={handleNewOrderForVehicle}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
@@ -1027,6 +1028,7 @@ export default function App() {
               onAddItem={handleAddInventoryItem}
               onUpdateStock={handleUpdateStock}
               onDeleteItem={handleDeleteInventoryItem}
+              onDeleteMultipleInventory={handleDeleteMultipleInventory}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
             />
@@ -1039,6 +1041,7 @@ export default function App() {
               onAddBudget={handleAddBudget}
               onUpdateBudget={handleUpdateBudget}
               onDeleteBudget={handleDeleteBudget}
+              onDeleteMultipleBudgets={handleDeleteMultipleBudgets}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
             />
@@ -1214,6 +1217,7 @@ export default function App() {
         mechanics={mechanics}
         onAddMechanic={handleAddMechanic}
         onDeleteMechanic={handleDeleteMechanic}
+        onDeleteMultipleMechanics={handleDeleteMultipleMechanics}
         onToggleStatus={handleToggleMechanicStatus}
       />
 

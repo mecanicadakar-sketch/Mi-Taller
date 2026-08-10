@@ -601,8 +601,8 @@ export function DeleteDataModal({
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => {}}
-                              className="w-4 h-4 rounded-md accent-red-500 cursor-pointer"
+                              readOnly
+                              className="w-4 h-4 rounded-md accent-red-500 pointer-events-none"
                             />
                             <div>
                               <span className="font-bold text-white">{wo.numeroOrden}</span>
@@ -743,8 +743,8 @@ export function DeleteDataModal({
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => {}}
-                              className="w-4 h-4 rounded-md accent-red-500 cursor-pointer"
+                              readOnly
+                              className="w-4 h-4 rounded-md accent-red-500 pointer-events-none"
                             />
                             <div>
                               <span className="font-bold text-white">{c.nombre}</span>
@@ -887,8 +887,8 @@ export function DeleteDataModal({
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => {}}
-                              className="w-4 h-4 rounded-md accent-red-500 cursor-pointer"
+                              readOnly
+                              className="w-4 h-4 rounded-md accent-red-500 pointer-events-none"
                             />
                             <div>
                               <span className="font-bold text-white">{b.numeroPresupuesto}</span>
@@ -1024,8 +1024,8 @@ export function DeleteDataModal({
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => {}}
-                              className="w-4 h-4 rounded-md accent-red-500 cursor-pointer"
+                              readOnly
+                              className="w-4 h-4 rounded-md accent-red-500 pointer-events-none"
                             />
                             <div>
                               <span className="font-mono text-amber-400 font-bold">[{item.codigo}]</span>
@@ -1164,8 +1164,8 @@ export function DeleteDataModal({
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => {}}
-                              className="w-4 h-4 rounded-md accent-red-500 cursor-pointer"
+                              readOnly
+                              className="w-4 h-4 rounded-md accent-red-500 pointer-events-none"
                             />
                             <div>
                               <span className="font-bold text-white">{m.nombre}</span>
@@ -1220,79 +1220,81 @@ export function DeleteDataModal({
           </div>
 
           {/* Action trigger button */}
-          {!showConfirm ? (
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={handleStartDeleteCategories}
-                disabled={totalCategorySelectedCount === 0}
-                className="w-full py-3 px-4 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-red-600 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>
-                  Eliminar Categorías Completas Seleccionadas ({totalCategorySelectedCount} ítems)
-                </span>
-              </button>
-            </div>
-          ) : (
-            /* Warning Confirmation Panel */
-            <div className="p-4 bg-red-950/90 border-2 border-red-500 rounded-2xl space-y-3 animate-in fade-in duration-200">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-red-900/80 rounded-xl text-red-300 shrink-0">
-                  <AlertTriangle className="w-6 h-6 text-amber-400" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-sm font-black text-white">
-                    ¿ESTÁS SEGURO QUE QUIERES BORRAR?
-                  </h4>
-                  <p className="text-xs text-red-200 leading-relaxed">
-                    Se eliminarán de forma permanente{' '}
-                    <strong className="text-amber-300 font-extrabold">
-                      {confirmMode === 'categories'
-                        ? `${totalCategorySelectedCount} elementos de las categorías completas`
-                        : confirmMode === 'duplicates'
-                        ? `${duplicateInfo.duplicateIds.length} órdenes duplicadas`
-                        : confirmMode === 'specificWorkOrders'
-                        ? `${selectedOrderIds.length} órdenes de trabajo seleccionadas`
-                        : confirmMode === 'specificClients'
-                        ? `${selectedClientIds.length} clientes seleccionados`
-                        : confirmMode === 'specificBudgets'
-                        ? `${selectedBudgetIds.length} presupuestos seleccionados`
-                        : confirmMode === 'specificInventory'
-                        ? `${selectedInventoryIds.length} repuestos seleccionados`
-                        : `${selectedMechanicIds.length} mecánicos seleccionados`}
-                    </strong>{' '}
-                    de la base de datos en la nube (Firestore) y del almacenamiento local.
-                  </p>
-                  <p className="text-[11px] font-bold text-red-300 uppercase tracking-wider">
-                    ⚠️ Esta acción NO SE PUEDE DESHACER.
-                  </p>
-                </div>
-              </div>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={handleStartDeleteCategories}
+              disabled={totalCategorySelectedCount === 0}
+              className="w-full py-3 px-4 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-red-600 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>
+                Eliminar Categorías Completas Seleccionadas ({totalCategorySelectedCount} ítems)
+              </span>
+            </button>
+          </div>
 
-              <div className="flex items-center gap-2 pt-2 border-t border-red-800/80">
-                <button
-                  type="button"
-                  onClick={() => setShowConfirm(false)}
-                  disabled={isDeleting}
-                  className="flex-1 py-2.5 px-3 bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition-colors"
-                >
-                  Cancelar
-                </button>
+          {/* Warning Confirmation Overlay Modal */}
+          {showConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xs animate-in fade-in duration-200">
+              <div className="p-5 bg-red-950 border-2 border-red-500 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-red-900/80 rounded-xl text-red-300 shrink-0 border border-red-500/30">
+                    <AlertTriangle className="w-6 h-6 text-amber-400 animate-bounce" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-black text-white">
+                      ¿ESTÁS SEGURO QUE QUIERES BORRAR?
+                    </h4>
+                    <p className="text-xs text-red-200 leading-relaxed">
+                      Se eliminarán de forma permanente{' '}
+                      <strong className="text-amber-300 font-extrabold">
+                        {confirmMode === 'categories'
+                          ? `${totalCategorySelectedCount} elementos de las categorías completas`
+                          : confirmMode === 'duplicates'
+                          ? `${duplicateInfo.duplicateIds.length} órdenes duplicadas`
+                          : confirmMode === 'specificWorkOrders'
+                          ? `${selectedOrderIds.length} órdenes de trabajo seleccionadas`
+                          : confirmMode === 'specificClients'
+                          ? `${selectedClientIds.length} clientes seleccionados`
+                          : confirmMode === 'specificBudgets'
+                          ? `${selectedBudgetIds.length} presupuestos seleccionados`
+                          : confirmMode === 'specificInventory'
+                          ? `${selectedInventoryIds.length} repuestos seleccionados`
+                          : `${selectedMechanicIds.length} mecánicos seleccionados`}
+                      </strong>{' '}
+                      de la base de datos en la nube (Firestore) y del almacenamiento local.
+                    </p>
+                    <p className="text-[11px] font-bold text-red-300 uppercase tracking-wider">
+                      ⚠️ Esta acción NO SE PUEDE DESHACER.
+                    </p>
+                  </div>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={handleConfirmDelete}
-                  disabled={isDeleting}
-                  className="flex-1 py-2.5 px-3 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
-                >
-                  {isDeleting ? (
-                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
-                  <span>{isDeleting ? 'Borrando...' : 'Sí, Borrar Ahora'}</span>
-                </button>
+                <div className="flex items-center gap-2 pt-2 border-t border-red-800/80">
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm(false)}
+                    disabled={isDeleting}
+                    className="flex-1 py-2.5 px-3 bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleConfirmDelete}
+                    disabled={isDeleting}
+                    className="flex-1 py-2.5 px-3 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isDeleting ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    <span>{isDeleting ? 'Borrando...' : 'Sí, Borrar Ahora'}</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}

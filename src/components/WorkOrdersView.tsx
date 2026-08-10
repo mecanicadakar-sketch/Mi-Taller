@@ -149,10 +149,22 @@ export function WorkOrdersView({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={toggleSelectAllFiltered}
+            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-100 font-bold text-xs rounded-xl transition-all border border-slate-700 flex items-center gap-1.5 shadow-2xs cursor-pointer"
+          >
+            {allFilteredAreSelected ? (
+              <CheckSquare className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Square className="w-4 h-4 text-slate-400" />
+            )}
+            <span>{allFilteredAreSelected ? 'Desmarcar Visibles' : 'Marcar Visibles'}</span>
+          </button>
+
           {duplicateInfo.duplicateIds.length > 0 && (
             <button
               onClick={handleSelectDuplicates}
-              className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 border border-amber-300 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-2xs"
+              className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 border border-amber-300 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
             >
               <Sparkles className="w-4 h-4 text-amber-600 animate-pulse" />
               <span>Seleccionar {duplicateInfo.duplicateIds.length} Duplicados</span>
