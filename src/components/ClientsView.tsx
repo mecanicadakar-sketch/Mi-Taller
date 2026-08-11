@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Client, Vehicle } from '../types/tallerya';
-import { Search, UserPlus, Phone, Mail, Car, Plus, Wrench, Edit3, Save, MapPin, Trash2, Calendar, AlertTriangle, RefreshCw, CheckSquare, Square } from 'lucide-react';
+import { Search, UserPlus, Phone, Mail, Car, Plus, Wrench, Edit3, Save, MapPin, Trash2, Calendar } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 import { formatDateSpanish, parseAndNormalizeDate } from '../utils/dateUtils';
 
@@ -9,7 +9,6 @@ interface ClientsViewProps {
   onAddClient: (client: Client) => void;
   onUpdateClient?: (client: Client) => void;
   onDeleteClient?: (clientId: string) => void;
-  onDeleteMultipleClients?: (clientIds: string[]) => Promise<void>;
   onNewWorkOrderForVehicle: (client: Client, vehicle: Vehicle) => void;
   searchTerm?: string;
   setSearchTerm?: (term: string) => void;
@@ -20,7 +19,6 @@ export function ClientsView({
   onAddClient,
   onUpdateClient,
   onDeleteClient,
-  onDeleteMultipleClients,
   onNewWorkOrderForVehicle,
   searchTerm = '',
   setSearchTerm,
@@ -28,11 +26,6 @@ export function ClientsView({
   const [localSearch, setLocalSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
-
-  // Batch deletion state
-  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
-  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
-  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
 
   // Edit Client Modal State
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -50,7 +43,7 @@ export function ClientsView({
   const [vehModelo, setVehModelo] = useState('');
   const [vehAnio, setVehAnio] = useState(2022);
   const [vehKm, setVehKm] = useState(50000);
-  const [vehCombustible, setVehCombustible] = useState<'1/4' | '1/2' | '3/4' | 'Lleno' | 'Reserva'>('1/2');
+  const [vehCombustible, setVehCombustible] = useState('1/2');
   const [vehFechaRegistro, setVehFechaRegistro] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
   // New Client Form State
@@ -227,48 +220,8 @@ export function ClientsView({
     setEditingVehicle(null);
   };
 
-  const toggleSelectClient = (id: string) => {
-    setSelectedClientIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
-  };
-
-  const allFilteredAreSelected =
-    filteredClients.length > 0 &&
-    filteredClients.every((c) => selectedClientIds.includes(c.id));
-
-  const toggleSelectAllFiltered = () => {
-    if (allFilteredAreSelected) {
-      const filteredIds = new Set(filteredClients.map((c) => c.id));
-      setSelectedClientIds((prev) => prev.filter((id) => !filteredIds.has(id)));
-    } else {
-      const filteredIds = filteredClients.map((c) => c.id);
-      setSelectedClientIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
-    }
-  };
-
-  const handleConfirmBatchDelete = async () => {
-    if (selectedClientIds.length === 0) return;
-    setIsBatchDeleting(true);
-    try {
-      if (onDeleteMultipleClients) {
-        await onDeleteMultipleClients(selectedClientIds);
-      } else if (onDeleteClient) {
-        for (const id of selectedClientIds) {
-          await onDeleteClient(id);
-        }
-      }
-      setSelectedClientIds([]);
-      setShowBatchDeleteConfirm(false);
-    } catch (e) {
-      console.error('Error eliminando clientes en lote:', e);
-    } finally {
-      setIsBatchDeleting(false);
-    }
-  };
-
   return (
-    <div className="p-6 space-y-6 relative pb-24">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
         <div>
@@ -285,87 +238,50 @@ export function ClientsView({
         </button>
       </div>
 
-      {/* Search & Selection Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="relative max-w-md flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={activeSearch}
-            onChange={(e) => {
-              if (setSearchTerm) setSearchTerm(e.target.value);
-              setLocalSearch(e.target.value);
-            }}
-            placeholder="Buscar por cliente, teléfono o patente..."
-            className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-          />
-        </div>
-
-        {filteredClients.length > 0 && (
-          <button
-            type="button"
-            onClick={toggleSelectAllFiltered}
-            className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-bold text-xs shadow-xs transition-colors flex items-center gap-2 justify-center shrink-0"
-          >
-            {allFilteredAreSelected ? (
-              <CheckSquare className="w-4 h-4 text-amber-500" />
-            ) : (
-              <Square className="w-4 h-4 text-slate-400" />
-            )}
-            <span>{allFilteredAreSelected ? 'Desmarcar Visibles' : 'Marcar Visibles'}</span>
-          </button>
-        )}
+      {/* Search Input */}
+      <div className="relative max-w-md">
+        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        <input
+          type="text"
+          value={activeSearch}
+          onChange={(e) => {
+            if (setSearchTerm) setSearchTerm(e.target.value);
+            setLocalSearch(e.target.value);
+          }}
+          placeholder="Buscar por cliente, teléfono o patente..."
+          className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+        />
       </div>
 
       {/* Client List */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredClients.map((client) => {
-          const isSelected = selectedClientIds.includes(client.id);
-
-          return (
-            <div
-              key={client.id}
-              className={`bg-white rounded-xl border p-5 space-y-4 transition-all shadow-xs ${
-                isSelected
-                  ? 'border-red-400 ring-2 ring-red-500/20 bg-red-50/20'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              {/* Client Info */}
-              <div className="flex items-start justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-start gap-3">
+        {filteredClients.map((client) => (
+          <div
+            key={client.id}
+            className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4 hover:border-slate-300 transition-all"
+          >
+            {/* Client Info */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-900 text-base">{client.nombre}</h3>
                   <button
-                    type="button"
-                    onClick={() => toggleSelectClient(client.id)}
-                    className="mt-0.5 text-slate-400 hover:text-red-500 transition-colors"
+                    onClick={() => openEditClientModal(client)}
+                    title="Editar datos del cliente"
+                    className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                   >
-                    {isSelected ? (
-                      <CheckSquare className="w-5 h-5 text-red-500" />
-                    ) : (
-                      <Square className="w-5 h-5 text-slate-300" />
-                    )}
+                    <Edit3 className="w-3.5 h-3.5" />
                   </button>
-
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-slate-900 text-base">{client.nombre}</h3>
-                      <button
-                        onClick={() => openEditClientModal(client)}
-                        title="Editar datos del cliente"
-                        className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      {onDeleteClient && (
-                        <button
-                          onClick={() => setClientToDelete(client)}
-                          title="Eliminar cliente"
-                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
+                  {onDeleteClient && (
+                    <button
+                      onClick={() => setClientToDelete(client)}
+                      title="Eliminar cliente"
+                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-1">
                   <span className="flex items-center gap-1">
                     <Phone className="w-3.5 h-3.5 text-slate-400" />
@@ -391,7 +307,6 @@ export function ClientsView({
                   )}
                 </div>
               </div>
-            </div>
 
               <div className="flex flex-col items-end gap-1.5">
                 <span className="px-2.5 py-1 bg-slate-100 text-slate-700 font-bold text-xs rounded-lg">
@@ -466,86 +381,8 @@ export function ClientsView({
               ))}
             </div>
           </div>
-        );
-      })}
-    </div>
-
-      {/* Floating Batch Action Bar */}
-      {selectedClientIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-4 animate-in slide-in-from-bottom duration-200">
-          <div className="flex items-center gap-2 font-bold text-xs">
-            <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black">
-              {selectedClientIds.length}
-            </span>
-            <span>Clientes seleccionados</span>
-          </div>
-
-          <div className="h-4 w-px bg-slate-700" />
-
-          <button
-            onClick={() => setSelectedClientIds([])}
-            className="px-2.5 py-1.5 text-slate-400 hover:text-white font-semibold text-xs transition-colors"
-          >
-            Deseleccionar
-          </button>
-
-          <button
-            onClick={() => setShowBatchDeleteConfirm(true)}
-            className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Eliminar Seleccionados ({selectedClientIds.length})</span>
-          </button>
-        </div>
-      )}
-
-      {/* Batch Delete Confirm Modal */}
-      {showBatchDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3 text-red-600">
-              <div className="p-3 bg-red-50 rounded-2xl">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-base text-slate-900">¿Eliminar Clientes Seleccionados?</h3>
-                <p className="text-xs text-slate-500">
-                  Esta acción eliminará {selectedClientIds.length} clientes.
-                </p>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
-              Se eliminarán de forma permanente los clientes seleccionados del sistema. ¿Deseas continuar?
-            </p>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowBatchDeleteConfirm(false)}
-                disabled={isBatchDeleting}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
-              >
-                Cancelar
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConfirmBatchDelete}
-                disabled={isBatchDeleting}
-                className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-2"
-              >
-                {isBatchDeleting ? (
-                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                ) : (
-                  <Trash2 className="w-4 h-4" />
-                )}
-                <span>{isBatchDeleting ? 'Eliminando...' : 'Sí, Eliminar Seleccionados'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        ))}
+      </div>
 
       {/* Add Client Modal */}
       {showAddModal && (
@@ -870,7 +707,7 @@ export function ClientsView({
                   <label className="text-xs font-semibold text-slate-700">Nivel Combustible</label>
                   <select
                     value={vehCombustible}
-                    onChange={(e) => setVehCombustible(e.target.value as any)}
+                    onChange={(e) => setVehCombustible(e.target.value)}
                     className="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   >
                     <option value="Reserva">Reserva</option>

@@ -232,27 +232,12 @@ export function deduplicateClients(clientsList: Client[]): Client[] {
 }
 
 /**
- * Deduplicate work orders by numeroOrden or (patente + fecha + cliente)
+ * Deduplicate work orders by numeroOrden or (patente + fecha + falla)
  */
 export function deduplicateWorkOrders(ordersList: WorkOrder[]): WorkOrder[] {
   const map = new Map<string, WorkOrder>();
   ordersList.forEach((o) => {
-    const patente = (o.vehiculo?.patente || '').trim().toUpperCase();
-    const numero = (o.numeroOrden || '').trim().toUpperCase();
-    const fecha = (o.fechaIngreso || '').trim();
-    const cliente = (o.clienteNombre || '').trim().toLowerCase();
-
-    let key = '';
-    if (numero && numero !== 'OT-0000' && numero !== 'OT-000') {
-      key = `num_${numero}`;
-    } else if (patente && patente !== 'S/P' && fecha) {
-      key = `pat_${patente}_${fecha}_${cliente}`;
-    } else if (patente && patente !== 'S/P') {
-      key = `pat_${patente}_${cliente}_${o.fallaReportada?.trim().toLowerCase() || ''}`;
-    } else {
-      key = o.id || `id_${Math.random()}`;
-    }
-
+    const key = o.id || `wo_${o.numeroOrden || ''}_${o.fechaIngreso || ''}`;
     if (!map.has(key)) {
       map.set(key, { ...o });
     } else {
@@ -266,50 +251,6 @@ export function deduplicateWorkOrders(ordersList: WorkOrder[]): WorkOrder[] {
     }
   });
   return Array.from(map.values());
-}
-
-/**
- * Detect duplicate work orders in a list and return duplicate items and their IDs
- */
-export function detectDuplicateWorkOrders(orders: WorkOrder[]): {
-  duplicates: WorkOrder[];
-  duplicateIds: string[];
-  uniqueOrdersCount: number;
-} {
-  const seenKeys = new Map<string, WorkOrder>();
-  const duplicates: WorkOrder[] = [];
-  const duplicateIds: string[] = [];
-
-  orders.forEach((o) => {
-    const patente = (o.vehiculo?.patente || '').trim().toUpperCase();
-    const numero = (o.numeroOrden || '').trim().toUpperCase();
-    const fecha = (o.fechaIngreso || '').trim();
-    const cliente = (o.clienteNombre || '').trim().toLowerCase();
-
-    let key = '';
-    if (numero && numero !== 'OT-0000' && numero !== 'OT-000') {
-      key = `num_${numero}`;
-    } else if (patente && patente !== 'S/P' && fecha) {
-      key = `pat_${patente}_${fecha}_${cliente}`;
-    } else if (patente && patente !== 'S/P') {
-      key = `pat_${patente}_${cliente}_${o.fallaReportada?.trim().toLowerCase() || ''}`;
-    } else {
-      key = o.id;
-    }
-
-    if (seenKeys.has(key)) {
-      duplicates.push(o);
-      duplicateIds.push(o.id);
-    } else {
-      seenKeys.set(key, o);
-    }
-  });
-
-  return {
-    duplicates,
-    duplicateIds,
-    uniqueOrdersCount: seenKeys.size,
-  };
 }
 
 /**
@@ -426,7 +367,7 @@ export function mapSheetRowsToEntities(
     }
 
     const baseKm = kmCurrent;
-    const calculatedNextKm = resolveProximoKm(baseKm, kmCurrent, nextKm, intervalKm);
+    const calculatedNextKm = resolveProximoKm(baseKm, nextKm, intervalKm);
 
     // Build maintenance object if service log details are present
     const filtrosLower = (filtrosCambiados || '').toLowerCase();

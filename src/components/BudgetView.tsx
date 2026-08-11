@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Budget, Workshop } from '../types/tallerya';
 import { PrintBudgetModal } from './PrintBudgetModal';
-import { Plus, Printer, Edit, Trash2, Search, X, Save, Send, CheckSquare, Square, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Plus, Printer, Edit, Trash2, Search, X, Save, Send } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 import { formatDateSpanish } from '../utils/dateUtils';
 
@@ -11,7 +11,6 @@ interface BudgetViewProps {
   onAddBudget: (budget: Budget) => void;
   onUpdateBudget?: (budget: Budget) => void;
   onDeleteBudget?: (budgetId: string) => void;
-  onDeleteMultipleBudgets?: (budgetIds: string[]) => Promise<void>;
   searchTerm?: string;
   setSearchTerm?: (term: string) => void;
 }
@@ -22,7 +21,6 @@ export function BudgetView({
   onAddBudget,
   onUpdateBudget,
   onDeleteBudget,
-  onDeleteMultipleBudgets,
   searchTerm = '',
   setSearchTerm,
 }: BudgetViewProps) {
@@ -31,11 +29,6 @@ export function BudgetView({
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [budgetToDelete, setBudgetToDelete] = useState<Budget | null>(null);
   const [localSearch, setLocalSearch] = useState('');
-
-  // Batch deletion state
-  const [selectedBudgetIds, setSelectedBudgetIds] = useState<string[]>([]);
-  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
-  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
 
   const handleShareWhatsApp = (b: Budget) => {
     let savedHeader = {
@@ -228,48 +221,8 @@ export function BudgetView({
     }
   };
 
-  const toggleSelectBudget = (id: string) => {
-    setSelectedBudgetIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
-  };
-
-  const allFilteredAreSelected =
-    filteredBudgets.length > 0 &&
-    filteredBudgets.every((b) => selectedBudgetIds.includes(b.id));
-
-  const toggleSelectAllFiltered = () => {
-    if (allFilteredAreSelected) {
-      const filteredIds = new Set(filteredBudgets.map((b) => b.id));
-      setSelectedBudgetIds((prev) => prev.filter((id) => !filteredIds.has(id)));
-    } else {
-      const filteredIds = filteredBudgets.map((b) => b.id);
-      setSelectedBudgetIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
-    }
-  };
-
-  const handleConfirmBatchDelete = async () => {
-    if (selectedBudgetIds.length === 0) return;
-    setIsBatchDeleting(true);
-    try {
-      if (onDeleteMultipleBudgets) {
-        await onDeleteMultipleBudgets(selectedBudgetIds);
-      } else if (onDeleteBudget) {
-        for (const id of selectedBudgetIds) {
-          await onDeleteBudget(id);
-        }
-      }
-      setSelectedBudgetIds([]);
-      setShowBatchDeleteConfirm(false);
-    } catch (e) {
-      console.error('Error eliminando presupuestos en lote:', e);
-    } finally {
-      setIsBatchDeleting(false);
-    }
-  };
-
   return (
-    <div className="p-6 space-y-6 relative pb-24">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
         <div>
@@ -286,78 +239,40 @@ export function BudgetView({
         </button>
       </div>
 
-      {/* Search & Selection Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="relative max-w-md flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={activeSearch}
-            onChange={(e) => {
-              if (setSearchTerm) setSearchTerm(e.target.value);
-              setLocalSearch(e.target.value);
-            }}
-            placeholder="Buscar por cliente, N° presupuesto o detalle..."
-            className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-          />
-        </div>
-
-        {filteredBudgets.length > 0 && (
-          <button
-            type="button"
-            onClick={toggleSelectAllFiltered}
-            className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-bold text-xs shadow-xs transition-colors flex items-center gap-2 justify-center shrink-0"
-          >
-            {allFilteredAreSelected ? (
-              <CheckSquare className="w-4 h-4 text-amber-500" />
-            ) : (
-              <Square className="w-4 h-4 text-slate-400" />
-            )}
-            <span>{allFilteredAreSelected ? 'Desmarcar Visibles' : 'Marcar Visibles'}</span>
-          </button>
-        )}
+      {/* Search Input */}
+      <div className="relative max-w-md">
+        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        <input
+          type="text"
+          value={activeSearch}
+          onChange={(e) => {
+            if (setSearchTerm) setSearchTerm(e.target.value);
+            setLocalSearch(e.target.value);
+          }}
+          placeholder="Buscar por cliente, N° presupuesto o detalle..."
+          className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+        />
       </div>
 
       {/* Budgets List */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredBudgets.map((b) => {
-          const isSelected = selectedBudgetIds.includes(b.id);
-
-          return (
-            <div
-              key={b.id}
-              className={`bg-white rounded-xl border p-5 space-y-4 transition-all shadow-xs ${
-                isSelected
-                  ? 'border-red-400 ring-2 ring-red-500/20 bg-red-50/20'
-                  : 'border-slate-200 hover:border-amber-400'
-              }`}
-            >
-              <div className="flex items-start justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-start gap-3">
-                  <button
-                    type="button"
-                    onClick={() => toggleSelectBudget(b.id)}
-                    className="mt-0.5 text-slate-400 hover:text-red-500 transition-colors"
-                  >
-                    {isSelected ? (
-                      <CheckSquare className="w-5 h-5 text-red-500" />
-                    ) : (
-                      <Square className="w-5 h-5 text-slate-300" />
-                    )}
-                  </button>
-
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-slate-900 text-xs bg-slate-100 px-2 py-0.5 rounded-md">
-                        {b.numeroPresupuesto}
-                      </span>
-                      <span className="text-xs text-slate-400">{formatDateSpanish(b.fecha)}</span>
-                    </div>
-                    <h3 className="font-bold text-slate-900 text-base mt-1">{b.clienteNombre}</h3>
-                    <p className="text-xs text-slate-500">{b.vehiculoInfo}</p>
-                    {b.clienteTelefono && <p className="text-xs text-slate-400">Tel: {b.clienteTelefono}</p>}
-                  </div>
+        {filteredBudgets.map((b) => (
+          <div
+            key={b.id}
+            className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4 hover:border-amber-400 transition-all"
+          >
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-slate-900 text-xs bg-slate-100 px-2 py-0.5 rounded-md">
+                    {b.numeroPresupuesto}
+                  </span>
+                  <span className="text-xs text-slate-400">{formatDateSpanish(b.fecha)}</span>
                 </div>
+                <h3 className="font-bold text-slate-900 text-base mt-1">{b.clienteNombre}</h3>
+                <p className="text-xs text-slate-500">{b.vehiculoInfo}</p>
+                {b.clienteTelefono && <p className="text-xs text-slate-400">Tel: {b.clienteTelefono}</p>}
+              </div>
 
               <div className="flex items-center gap-2">
                 <select
@@ -438,86 +353,8 @@ export function BudgetView({
               </div>
             </div>
           </div>
-        );
-      })}
-    </div>
-
-      {/* Floating Batch Action Bar */}
-      {selectedBudgetIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-4 animate-in slide-in-from-bottom duration-200">
-          <div className="flex items-center gap-2 font-bold text-xs">
-            <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black">
-              {selectedBudgetIds.length}
-            </span>
-            <span>Presupuestos seleccionados</span>
-          </div>
-
-          <div className="h-4 w-px bg-slate-700" />
-
-          <button
-            onClick={() => setSelectedBudgetIds([])}
-            className="px-2.5 py-1.5 text-slate-400 hover:text-white font-semibold text-xs transition-colors"
-          >
-            Deseleccionar
-          </button>
-
-          <button
-            onClick={() => setShowBatchDeleteConfirm(true)}
-            className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Eliminar Seleccionados ({selectedBudgetIds.length})</span>
-          </button>
-        </div>
-      )}
-
-      {/* Batch Delete Confirm Modal */}
-      {showBatchDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3 text-red-600">
-              <div className="p-3 bg-red-50 rounded-2xl">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-base text-slate-900">¿Eliminar Presupuestos Seleccionados?</h3>
-                <p className="text-xs text-slate-500">
-                  Esta acción eliminará {selectedBudgetIds.length} presupuestos.
-                </p>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
-              Se eliminarán de forma permanente los presupuestos seleccionados del sistema. ¿Deseas continuar?
-            </p>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowBatchDeleteConfirm(false)}
-                disabled={isBatchDeleting}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
-              >
-                Cancelar
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConfirmBatchDelete}
-                disabled={isBatchDeleting}
-                className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-2"
-              >
-                {isBatchDeleting ? (
-                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                ) : (
-                  <Trash2 className="w-4 h-4" />
-                )}
-                <span>{isBatchDeleting ? 'Eliminando...' : 'Sí, Eliminar Seleccionados'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        ))}
+      </div>
 
       {/* Add / Edit Budget Modal */}
       {showAddModal && (

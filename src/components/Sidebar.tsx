@@ -21,7 +21,6 @@ import {
   FileSpreadsheet,
   MessageSquare,
   RotateCcw,
-  Trash2,
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { Workshop } from '../types/tallerya';
@@ -44,7 +43,6 @@ interface SidebarProps {
   onOpenMechanicsModal: () => void;
   onOpenSubscriptionModal: () => void;
   onOpenAdminPanel?: () => void;
-  onOpenDeleteData?: () => void;
   onInstallApp?: () => void;
 }
 
@@ -66,7 +64,6 @@ export function Sidebar({
   onOpenMechanicsModal,
   onOpenSubscriptionModal,
   onOpenAdminPanel,
-  onOpenDeleteData,
   onInstallApp,
 }: SidebarProps) {
   const menuItems = [
@@ -313,21 +310,6 @@ export function Sidebar({
             </div>
             <span className="px-2 py-0.5 text-[10px] rounded-full font-bold bg-slate-800 text-amber-400 border border-amber-500/30 uppercase tracking-wider">
               Admin
-            </span>
-          </button>
-        )}
-
-        {onOpenDeleteData && (
-          <button
-            onClick={onOpenDeleteData}
-            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm hover:bg-red-950/50 text-red-400 hover:text-red-300 border border-red-900/40 transition-all shadow-xs"
-          >
-            <div className="flex items-center gap-3">
-              <Trash2 className="w-5 h-5 text-red-400" />
-              <span className="font-bold">Eliminar Datos</span>
-            </div>
-            <span className="px-2 py-0.5 text-[10px] rounded-full font-bold bg-red-950 text-red-400 border border-red-800 uppercase tracking-wider">
-              Borrar
             </span>
           </button>
         )}
