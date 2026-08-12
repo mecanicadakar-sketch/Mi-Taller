@@ -15,7 +15,10 @@ import {
   Package,
   FileText,
   FileSpreadsheet,
-  RefreshCw
+  RefreshCw,
+  Sparkles,
+  Share2,
+  Settings,
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { Workshop, WorkOrder, Client, InventoryItem, Budget } from '../types/tallerya';
@@ -42,6 +45,9 @@ interface HeaderProps {
   onSelectOrder?: (order: WorkOrder) => void;
   onNavigateTab?: (tab: string) => void;
   isSyncing?: boolean;
+  onOpenGuideAssistant?: () => void;
+  onCopyClientPortalLink?: () => void;
+  onOpenClientPortal?: () => void;
 }
 
 export function Header({
@@ -65,6 +71,9 @@ export function Header({
   onSelectOrder,
   onNavigateTab,
   isSyncing = false,
+  onOpenGuideAssistant,
+  onCopyClientPortalLink,
+  onOpenClientPortal,
 }: HeaderProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -381,6 +390,19 @@ export function Header({
           </div>
         )}
 
+        {/* Guide Assistant Button */}
+        {onOpenGuideAssistant && (
+          <button
+            onClick={onOpenGuideAssistant}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 font-bold text-xs rounded-xl border border-amber-500/40 transition-colors shadow-xs shrink-0"
+            title="Guía de uso de la aplicación"
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="hidden sm:inline">Guía Asistente</span>
+            <span className="sm:hidden font-extrabold text-[11px] text-amber-800">Guía</span>
+          </button>
+        )}
+
         {/* Subscription Button (Visible on Mobile & Desktop) */}
         <button
           onClick={onOpenSubscriptionModal}
@@ -408,22 +430,46 @@ export function Header({
         {/* Workshop Profile / Multi-Tenant Auth Header Controls */}
         {currentUser ? (
           /* Logged In Workshop Badge */
-          <div className="hidden sm:flex items-center gap-2 bg-blue-50/80 border border-blue-200/80 px-2.5 py-1.5 rounded-xl">
-            <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-              <Building2 className="w-4 h-4" />
-            </div>
-            <div className="hidden lg:block text-left pr-1">
-              <p className="text-xs font-bold text-slate-900 leading-tight truncate max-w-[120px]">
-                {workshop?.nombreTaller || 'Mi Taller'}
-              </p>
-              <p className="text-[10px] text-blue-700 font-medium truncate max-w-[120px]">
-                {currentUser.email}
-              </p>
-            </div>
+          <div className="hidden sm:flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-xl">
             <button
+              type="button"
+              onClick={() => onNavigateTab?.('settings')}
+              className="flex items-center gap-2 text-left hover:opacity-90 transition-opacity cursor-pointer"
+              title="Configurar Taller y Logo"
+            >
+              {workshop?.logoUrl ? (
+                <img
+                  src={workshop.logoUrl}
+                  alt="Logo Taller"
+                  className="w-7 h-7 object-contain rounded-lg border border-slate-700 bg-slate-950 p-0.5 shrink-0"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">
+                  <Building2 className="w-4 h-4" />
+                </div>
+              )}
+              <div className="hidden lg:block text-left pr-1">
+                <p className="text-xs font-bold text-white leading-tight truncate max-w-[110px]">
+                  {workshop?.nombreTaller || 'Mi Taller'}
+                </p>
+                <p className="text-[10px] text-amber-400 font-medium truncate max-w-[110px]">
+                  Configurar Taller
+                </p>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('settings')}
+              className="p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              title="Ajustes del Taller"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
               onClick={onSignOut}
               title="Cerrar Sesión"
-              className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
+              className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition-colors ml-0.5 cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -441,14 +487,36 @@ export function Header({
           </div>
         )}
 
+        {onCopyClientPortalLink && (
+          <button
+            onClick={onCopyClientPortalLink}
+            className="hidden xl:inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-800 transition-colors shadow-xs"
+            title="Copiar link para enviar a clientes por WhatsApp"
+          >
+            <Share2 className="w-4 h-4 text-emerald-400" />
+            <span>Link Clientes</span>
+          </button>
+        )}
+
         <button
           onClick={onOpenClientLookup}
-          className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-bold rounded-xl border border-slate-700 transition-colors shadow-xs"
+          className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-bold rounded-xl border border-slate-700 transition-colors shadow-xs"
           title="Consulta el estado de tu auto por patente"
         >
           <Car className="w-4 h-4 text-amber-400" />
           <span>Patente</span>
         </button>
+
+        {onNavigateTab && (
+          <button
+            onClick={() => onNavigateTab('auxilio_ia')}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 text-xs font-extrabold rounded-xl shadow-xs transition-colors shrink-0"
+            title="Asistente de Auxilio Mecánico con IA Gemini"
+          >
+            <Sparkles className="w-4 h-4 fill-slate-950" />
+            <span>Auxilio IA</span>
+          </button>
+        )}
 
         <button
           onClick={onNewWorkOrder}

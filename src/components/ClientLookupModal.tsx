@@ -26,9 +26,10 @@ interface ClientLookupModalProps {
   isOpen: boolean;
   onClose: () => void;
   localWorkOrders?: WorkOrder[];
+  onOpenAuxilioIA?: () => void;
 }
 
-export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [] }: ClientLookupModalProps) {
+export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], onOpenAuxilioIA }: ClientLookupModalProps) {
   const [patenteInput, setPatenteInput] = useState('');
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -175,6 +176,30 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [] }: Cli
               ))}
             </div>
           </form>
+
+          {onOpenAuxilioIA && (
+            <div className="bg-gradient-to-r from-slate-900 to-amber-950 text-white p-4 rounded-xl border border-amber-500/30 flex items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30 shrink-0">
+                  <Sparkles className="w-5 h-5 fill-amber-400" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-white">¿Problemas mecánicos o vehículo varado en ruta?</h4>
+                  <p className="text-xs text-slate-300">Consulta gratis al Asistente IA Gemini para un diagnóstico rápido.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenAuxilioIA();
+                }}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs transition-colors shrink-0"
+              >
+                Asistente IA
+              </button>
+            </div>
+          )}
 
           {/* Results Area */}
           {hasSearched && !searching && (
@@ -377,18 +402,21 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [] }: Cli
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-200">
-                                    {order.servicios.map((s) => (
-                                      <tr key={s.id}>
-                                        <td className="py-2 px-3 font-medium text-slate-800">
-                                          {s.descripcion}
-                                          <span className="ml-2 text-[10px] text-slate-600 uppercase">({s.tipo})</span>
-                                        </td>
-                                        <td className="py-2 px-3 text-center">{s.cantidad}</td>
-                                        <td className="py-2 px-3 text-right font-semibold text-slate-900">
-                                          ${(s.precioUnitario * s.cantidad).toLocaleString('es-AR')}
-                                        </td>
-                                      </tr>
-                                    ))}
+                                    {order.servicios.map((s) => {
+                                      const totalRepuestos = s.repuestosUtilizados?.reduce((acc, r) => acc + (r.cantidad * r.precioUnitario), 0) || 0;
+                                      const subtotal = (s.costoManoObra || 0) + totalRepuestos;
+                                      return (
+                                        <tr key={s.id}>
+                                          <td className="py-2 px-3 font-medium text-slate-800">
+                                            {s.descripcion}
+                                          </td>
+                                          <td className="py-2 px-3 text-center">1</td>
+                                          <td className="py-2 px-3 text-right font-semibold text-slate-900">
+                                            ${subtotal.toLocaleString('es-AR')}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { InventoryItem } from '../types/tallerya';
-import { Search, Plus, Package, AlertTriangle, ArrowUpDown, Edit3, Trash2, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, Package, AlertTriangle, ArrowUpDown, Edit3, Trash2, CheckCircle2, CheckSquare, Square, RefreshCw } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 
 interface InventoryViewProps {
@@ -8,6 +8,7 @@ interface InventoryViewProps {
   onAddItem: (item: InventoryItem) => void;
   onUpdateStock: (itemId: string, newStock: number) => void;
   onDeleteItem?: (itemId: string) => void;
+  onDeleteMultipleInventory?: (inventoryIds: string[]) => Promise<void>;
   searchTerm?: string;
   setSearchTerm?: (term: string) => void;
 }
@@ -17,6 +18,7 @@ export function InventoryView({
   onAddItem,
   onUpdateStock,
   onDeleteItem,
+  onDeleteMultipleInventory,
   searchTerm = '',
   setSearchTerm,
 }: InventoryViewProps) {
@@ -25,6 +27,11 @@ export function InventoryView({
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
+
+  // Batch deletion state
+  const [selectedInventoryIds, setSelectedInventoryIds] = useState<string[]>([]);
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
 
   // Form states
   const [codigo, setCodigo] = useState('');
@@ -103,8 +110,48 @@ export function InventoryView({
     setNombre('');
   };
 
+  const toggleSelectInventory = (id: string) => {
+    setSelectedInventoryIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const allFilteredAreSelected =
+    filteredItems.length > 0 &&
+    filteredItems.every((item) => selectedInventoryIds.includes(item.id));
+
+  const toggleSelectAllFiltered = () => {
+    if (allFilteredAreSelected) {
+      const filteredIds = new Set(filteredItems.map((i) => i.id));
+      setSelectedInventoryIds((prev) => prev.filter((id) => !filteredIds.has(id)));
+    } else {
+      const filteredIds = filteredItems.map((i) => i.id);
+      setSelectedInventoryIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  const handleConfirmBatchDelete = async () => {
+    if (selectedInventoryIds.length === 0) return;
+    setIsBatchDeleting(true);
+    try {
+      if (onDeleteMultipleInventory) {
+        await onDeleteMultipleInventory(selectedInventoryIds);
+      } else if (onDeleteItem) {
+        for (const id of selectedInventoryIds) {
+          await onDeleteItem(id);
+        }
+      }
+      setSelectedInventoryIds([]);
+      setShowBatchDeleteConfirm(false);
+    } catch (e) {
+      console.error('Error eliminando repuestos en lote:', e);
+    } finally {
+      setIsBatchDeleting(false);
+    }
+  };
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 relative pb-24">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
         <div>
@@ -161,6 +208,20 @@ export function InventoryView({
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold">
+                <th className="p-3.5 w-10 text-center">
+                  <button
+                    type="button"
+                    onClick={toggleSelectAllFiltered}
+                    className="text-slate-400 hover:text-amber-500 transition-colors"
+                    title={allFilteredAreSelected ? 'Desmarcar visibles' : 'Marcar visibles'}
+                  >
+                    {allFilteredAreSelected ? (
+                      <CheckSquare className="w-4 h-4 text-amber-500" />
+                    ) : (
+                      <Square className="w-4 h-4 text-slate-300" />
+                    )}
+                  </button>
+                </th>
                 <th className="p-3.5">Código / Ubicación</th>
                 <th className="p-3.5">Repuesto / Descripción</th>
                 <th className="p-3.5">Categoría</th>
@@ -175,9 +236,28 @@ export function InventoryView({
               {filteredItems.map((item) => {
                 const isLowStock = item.stockActual <= item.stockMinimo;
                 const margin = Math.round(((item.precioVenta - item.precioCosto) / item.precioCosto) * 100);
+                const isSelected = selectedInventoryIds.includes(item.id);
 
                 return (
-                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr
+                    key={item.id}
+                    className={`transition-colors ${
+                      isSelected ? 'bg-red-50/40' : 'hover:bg-slate-50/80'
+                    }`}
+                  >
+                    <td className="p-3.5 text-center">
+                      <button
+                        type="button"
+                        onClick={() => toggleSelectInventory(item.id)}
+                        className="text-slate-400 hover:text-red-500 transition-colors"
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="w-4 h-4 text-red-500" />
+                        ) : (
+                          <Square className="w-4 h-4 text-slate-300" />
+                        )}
+                      </button>
+                    </td>
                     <td className="p-3.5">
                       <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md text-[11px]">
                         {item.codigo}
@@ -265,6 +345,83 @@ export function InventoryView({
           </table>
         </div>
       </div>
+
+      {/* Floating Batch Action Bar */}
+      {selectedInventoryIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-4 animate-in slide-in-from-bottom duration-200">
+          <div className="flex items-center gap-2 font-bold text-xs">
+            <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+              {selectedInventoryIds.length}
+            </span>
+            <span>Repuestos seleccionados</span>
+          </div>
+
+          <div className="h-4 w-px bg-slate-700" />
+
+          <button
+            onClick={() => setSelectedInventoryIds([])}
+            className="px-2.5 py-1.5 text-slate-400 hover:text-white font-semibold text-xs transition-colors"
+          >
+            Deseleccionar
+          </button>
+
+          <button
+            onClick={() => setShowBatchDeleteConfirm(true)}
+            className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Eliminar Seleccionados ({selectedInventoryIds.length})</span>
+          </button>
+        </div>
+      )}
+
+      {/* Batch Delete Confirm Modal */}
+      {showBatchDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="p-3 bg-red-50 rounded-2xl">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base text-slate-900">¿Eliminar Repuestos Seleccionados?</h3>
+                <p className="text-xs text-slate-500">
+                  Esta acción eliminará {selectedInventoryIds.length} ítems de inventario.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
+              Se eliminarán de forma permanente los repuestos e insumos seleccionados del inventario. ¿Deseas continuar?
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBatchDeleteConfirm(false)}
+                disabled={isBatchDeleting}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmBatchDelete}
+                disabled={isBatchDeleting}
+                className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-2"
+              >
+                {isBatchDeleting ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                <span>{isBatchDeleting ? 'Eliminando...' : 'Sí, Eliminar Seleccionados'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Modal */}
       {showAddModal && (

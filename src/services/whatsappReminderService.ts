@@ -97,10 +97,11 @@ export function resolveProximoKm(
 /**
  * Calculates the time limits in days and months based on service interval in km.
  * Rules requested by user:
- * - 5,000 km -> 6 meses (180 días max, avisa desde 150 días)
- * - 10,000 km -> 12 meses (365 días max, avisa desde 335 días)
- * - 30,000 km -> 24 meses (730 días max, avisa desde 700 días)
- * - 50,000 km o más -> 36 meses o más (1095 días max)
+ * - 5,000 km -> 6 meses (180 días max, avisa desde 150 días) - Aceite
+ * - 10,000 km -> 12 meses (365 días max, avisa desde 335 días) - Aceite Estándar
+ * - 30,000 km -> 12 meses (365 días max, avisa desde 335 días) - Mantenimiento de Inyección
+ * - 50,000 km -> 24 meses (730 días max, avisa desde 700 días) - Caja Automática (ATF)
+ * - 100,000 km -> 36 meses (1095 días max, avisa desde 1065 días) - Distribución
  */
 export function getTimeLimitsForInterval(intervaloKm = 10000): { maxDays: number; dueSoonDays: number; maxMonths: number } {
   if (intervaloKm <= 5000) {
@@ -109,18 +110,14 @@ export function getTimeLimitsForInterval(intervaloKm = 10000): { maxDays: number
   if (intervaloKm <= 10000) {
     return { maxDays: 365, dueSoonDays: 335, maxMonths: 12 };
   }
-  if (intervaloKm <= 20000) {
-    return { maxDays: 547, dueSoonDays: 517, maxMonths: 18 };
+  if (intervaloKm <= 30000) {
+    return { maxDays: 365, dueSoonDays: 335, maxMonths: 12 };
   }
-  if (intervaloKm <= 40000) {
+  if (intervaloKm <= 50000) {
     return { maxDays: 730, dueSoonDays: 700, maxMonths: 24 };
   }
-  // 50,000 km or more
-  const years = Math.max(3, Math.round(intervaloKm / 15000));
-  const maxMonths = years * 12;
-  const maxDays = Math.round(years * 365);
-  const dueSoonDays = maxDays - 30;
-  return { maxDays, dueSoonDays, maxMonths };
+  // 100,000 km or more
+  return { maxDays: 1095, dueSoonDays: 1065, maxMonths: 36 };
 }
 
 /**
@@ -190,7 +187,13 @@ export function calculateReminders(
     const kmActuales = Math.max(vehicleMaxKm.get(patente) || 0, ultimoKm);
 
     const rawProximo = wo.mantenimiento?.proximoKmService;
-    const intervalo = wo.mantenimiento?.intervaloKm || 10000;
+    let intervalo = wo.mantenimiento?.intervaloKm;
+    if (!intervalo && rawProximo && ultimoKm > 0 && rawProximo > ultimoKm) {
+      intervalo = rawProximo - ultimoKm;
+    }
+    if (!intervalo || intervalo <= 0) {
+      intervalo = 10000;
+    }
     const { maxDays, dueSoonDays, maxMonths } = getTimeLimitsForInterval(intervalo);
 
     // Calculate next service target based on last service mileage and current mileage

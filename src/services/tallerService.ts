@@ -135,6 +135,56 @@ export async function createWorkshopProfile(workshop: Workshop): Promise<void> {
   }
 }
 
+export async function updateWorkshopProfile(
+  tallerId: string,
+  updates: Partial<Workshop>
+): Promise<void> {
+  const docRef = doc(db, 'workshops', tallerId);
+  const sanitized = sanitizeForFirestore(updates);
+
+  try {
+    await setDoc(docRef, sanitized, { merge: true });
+  } catch (err) {
+    console.warn('Error updating workshop profile in Firestore:', err);
+  }
+
+  try {
+    const userKey = `mitaller_${tallerId}_workshop`;
+    const cachedProfileStr = localStorage.getItem(userKey) || localStorage.getItem('mitaller_workshop_profile');
+    let currentProfile: Workshop = {
+      id: tallerId,
+      nombreTaller: updates.nombreTaller || 'MiTaller',
+      nombreOwner: updates.nombreOwner || '',
+      email: updates.email || '',
+      telefono: updates.telefono || '',
+      createdAt: new Date().toISOString(),
+      ...updates,
+    };
+
+    if (cachedProfileStr) {
+      const parsed = JSON.parse(cachedProfileStr);
+      currentProfile = { ...parsed, ...updates };
+    }
+
+    localStorage.setItem(userKey, JSON.stringify(currentProfile));
+    localStorage.setItem('mitaller_workshop_profile', JSON.stringify(currentProfile));
+
+    const backupListStr = localStorage.getItem('mitaller_workshops_registry');
+    if (backupListStr) {
+      const backupList: Workshop[] = JSON.parse(backupListStr);
+      const index = backupList.findIndex((w) => w.id === tallerId || (w.email && w.email === currentProfile.email));
+      if (index >= 0) {
+        backupList[index] = { ...backupList[index], ...updates };
+      } else {
+        backupList.push(currentProfile);
+      }
+      localStorage.setItem('mitaller_workshops_registry', JSON.stringify(backupList));
+    }
+  } catch (e) {
+    console.warn('Error syncing workshop updates to local cache:', e);
+  }
+}
+
 export async function updateWorkshopSubscription(
   tallerId: string,
   plan: 'trial' | 'basico' | 'pro' | 'enterprise',
@@ -393,39 +443,8 @@ export async function deleteInventoryItem(itemId: string) {
 
 // Seed initial demo data for a newly registered workshop
 export async function seedDemoDataForWorkshop(tallerId: string) {
-  const batch = writeBatch(db);
-
-  INITIAL_CLIENTS.forEach((c) => {
-    const ref = doc(db, 'clients', `c_${tallerId}_${c.id}`);
-    batch.set(ref, { ...c, id: `c_${tallerId}_${c.id}`, tallerId });
-  });
-
-  INITIAL_INVENTORY.forEach((i) => {
-    const ref = doc(db, 'inventory', `inv_${tallerId}_${i.id}`);
-    batch.set(ref, { ...i, id: `inv_${tallerId}_${i.id}`, tallerId });
-  });
-
-  INITIAL_WORK_ORDERS.forEach((o) => {
-    const ref = doc(db, 'workOrders', `wo_${tallerId}_${o.id}`);
-    batch.set(ref, {
-      ...o,
-      id: `wo_${tallerId}_${o.id}`,
-      clienteId: `c_${tallerId}_${o.clienteId}`,
-      tallerId
-    });
-  });
-
-  INITIAL_BUDGETS.forEach((b) => {
-    const ref = doc(db, 'budgets', `b_${tallerId}_${b.id}`);
-    batch.set(ref, { ...b, id: `b_${tallerId}_${b.id}`, tallerId });
-  });
-
-  INITIAL_MECHANICS.forEach((m) => {
-    const ref = doc(db, 'mechanics', `m_${tallerId}_${m.id}`);
-    batch.set(ref, { ...m, id: `m_${tallerId}_${m.id}`, tallerId });
-  });
-
-  await batch.commit();
+  // Demo seeding disabled per user request to keep workspace clean
+  return;
 }
 
 function sanitizeForFirestore<T>(obj: T): T {
@@ -445,6 +464,17 @@ function sanitizeForFirestore<T>(obj: T): T {
     return newObj;
   }
   return obj;
+}
+
+export function isDemoItem(item: any): boolean {
+  if (!item) return false;
+  const id = String(item.id || '');
+  if (id === 'c1' || id.endsWith('_c1') || item.nombre === 'Carlos Rodríguez') return true;
+  if (id === 'inv1' || id.endsWith('_inv1') || item.codigo === 'ACE-5W30-4L') return true;
+  if (id === 'wo-1' || id.endsWith('_wo-1') || item.numeroOrden === 'OT-1041') return true;
+  if (id === 'b1' || id.endsWith('_b1') || item.numeroPresupuesto === 'PRES-2026-089') return true;
+  if (id === 'm1' || id.endsWith('_m1') || (item.nombre === 'Juan Pérez' && item.telefono === '+54 9 11 5555-1111')) return true;
+  return false;
 }
 
 // Sync local guest data or offline items to Cloud Firestore
@@ -484,6 +514,13 @@ export async function syncLocalDataToCloud(
     const s = localStorage.getItem('mitaller_guest_mechanics');
     if (s) { try { mechanics = JSON.parse(s); } catch (e) {} }
   }
+
+  // Filter out any legacy demo items
+  if (clients) clients = clients.filter((item) => !isDemoItem(item));
+  if (inventory) inventory = inventory.filter((item) => !isDemoItem(item));
+  if (workOrders) workOrders = workOrders.filter((item) => !isDemoItem(item));
+  if (budgets) budgets = budgets.filter((item) => !isDemoItem(item));
+  if (mechanics) mechanics = mechanics.filter((item) => !isDemoItem(item));
 
   const itemsToWrite: Array<{ collectionName: string; id: string; data: any }> = [];
 
@@ -724,8 +761,8 @@ export async function getAllWorkshops(): Promise<Workshop[]> {
       nombreTaller: 'Mecánica Dakar',
       nombreOwner: 'Mecánica Dakar',
       email: 'mecanicadakar@gmail.com',
-      telefono: '+54 9 11 4522-8901',
-      direccion: 'Av. Libertador 4500, CABA',
+      telefono: '',
+      direccion: '',
       createdAt: new Date().toISOString(),
       subscription: dakarSub,
     });

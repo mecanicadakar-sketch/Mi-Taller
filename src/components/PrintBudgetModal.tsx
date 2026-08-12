@@ -17,6 +17,7 @@ interface PrintHeaderData {
   email: string;
   validez: string;
   garantia: string;
+  logoUrl?: string;
 }
 
 export function PrintBudgetModal({ budget, workshop, onClose }: PrintBudgetModalProps) {
@@ -35,11 +36,12 @@ export function PrintBudgetModal({ budget, workshop, onClose }: PrintBudgetModal
     return {
       nombreTaller: workshop?.nombreTaller || 'MiTaller',
       subtitulo: 'Servicios Mecánicos y Diagnóstico Computarizado',
-      direccion: workshop?.direccion || 'Av. Libertador 4500, CABA',
-      telefono: workshop?.telefono || '+54 9 11 4522-8901',
-      email: workshop?.email || 'mecanicadakar@gmail.com',
+      direccion: workshop?.direccion || '',
+      telefono: workshop?.telefono || '',
+      email: workshop?.email || '',
       validez: '10 días hábiles',
       garantia: 'Garantía de 3 meses en repuestos originales y mano de obra.',
+      logoUrl: workshop?.logoUrl || '',
     };
   });
 
@@ -182,13 +184,16 @@ export function PrintBudgetModal({ budget, workshop, onClose }: PrintBudgetModal
         </head>
         <body>
           <div class="header">
-            <div>
-              <div class="title">${headerData.nombreTaller}</div>
-              ${headerData.subtitulo ? `<div class="subtitle">${headerData.subtitulo}</div>` : ''}
-              <div class="contact-info">
-                ${headerData.direccion ? `<div>📍 ${headerData.direccion}</div>` : ''}
-                ${headerData.telefono ? `<div>📞 Tel / WhatsApp: ${headerData.telefono}</div>` : ''}
-                ${headerData.email ? `<div>✉️ ${headerData.email}</div>` : ''}
+            <div style="display: flex; align-items: center; gap: 14px;">
+              ${(headerData.logoUrl || workshop?.logoUrl) ? `<img src="${headerData.logoUrl || workshop?.logoUrl}" style="max-height: 55px; max-width: 140px; object-fit: contain; border-radius: 6px;" />` : ''}
+              <div>
+                <div class="title">${headerData.nombreTaller}</div>
+                ${headerData.subtitulo ? `<div class="subtitle">${headerData.subtitulo}</div>` : ''}
+                <div class="contact-info">
+                  ${headerData.direccion ? `<div>📍 ${headerData.direccion}</div>` : ''}
+                  ${headerData.telefono ? `<div>📞 Tel / WhatsApp: ${headerData.telefono}</div>` : ''}
+                  ${headerData.email ? `<div>✉️ ${headerData.email}</div>` : ''}
+                </div>
               </div>
             </div>
             <div style="text-align: right;">
@@ -512,10 +517,18 @@ export function PrintBudgetModal({ budget, workshop, onClose }: PrintBudgetModal
           {/* Workshop Header */}
           <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6">
             <div className="space-y-1 max-w-[65%]">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-amber-500 text-slate-950 font-black rounded-lg flex items-center justify-center shrink-0">
-                  <Wrench className="w-5 h-5" />
-                </div>
+              <div className="flex items-center gap-3">
+                {(headerData.logoUrl || workshop?.logoUrl) ? (
+                  <img
+                    src={headerData.logoUrl || workshop?.logoUrl}
+                    alt="Logo Taller"
+                    className="h-10 max-w-[140px] object-contain rounded-lg border border-slate-200 shrink-0"
+                  />
+                ) : (
+                  <div className="w-8 h-8 bg-amber-500 text-slate-950 font-black rounded-lg flex items-center justify-center shrink-0">
+                    <Wrench className="w-5 h-5" />
+                  </div>
+                )}
                 <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
                   {headerData.nombreTaller}
                 </h1>

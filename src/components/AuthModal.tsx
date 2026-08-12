@@ -470,19 +470,6 @@ export function AuthModal({ isOpen, onClose, onSuccess, initialMode = 'login' }:
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="seedDemoCheck"
-                  checked={seedDemo}
-                  onChange={(e) => setSeedDemo(e.target.checked)}
-                  className="rounded-xs border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                />
-                <label htmlFor="seedDemoCheck" className="text-xs text-slate-600 cursor-pointer select-none">
-                  Cargar datos iniciales de ejemplo (clientes, inventario y órdenes)
-                </label>
-              </div>
-
               <button
                 type="submit"
                 disabled={loading}

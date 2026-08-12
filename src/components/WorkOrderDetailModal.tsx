@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { WorkOrder, OrderStatus, InventoryItem, Mechanic } from '../types/tallerya';
-import { Wrench, Car, User, Phone, CheckCircle2, Clock, Plus, Trash2, Save, Printer, Users, CheckSquare, Sparkles, Package } from 'lucide-react';
+import { Wrench, Car, User, Phone, CheckCircle2, Clock, Plus, Trash2, Save, Printer, Users, CheckSquare, Sparkles, Package, Download, FileText, MessageCircle } from 'lucide-react';
 import { resolveProximoKm } from '../services/whatsappReminderService';
 import { formatDateSpanish, parseAndNormalizeDate } from '../utils/dateUtils';
+import { useToast } from '../context/ToastContext';
+import { downloadOrderPDF, sendOrderWhatsApp } from '../utils/orderShareUtils';
 
 interface WorkOrderDetailModalProps {
   order: WorkOrder;
@@ -32,6 +34,8 @@ export function WorkOrderDetailModal({
   onDeleteOrder,
   onOpenMechanicsModal,
 }: WorkOrderDetailModalProps) {
+  const { showSuccess, showError } = useToast();
+
   // Client state
   const [clienteNombre, setClienteNombre] = useState(order.clienteNombre || '');
   const [clienteTelefono, setClienteTelefono] = useState(order.clienteTelefono || '');
@@ -220,6 +224,48 @@ export function WorkOrderDetailModal({
     onClose();
   };
 
+  const getCurrentOrderSnapshot = (): WorkOrder => ({
+    ...order,
+    clienteNombre,
+    clienteTelefono,
+    fallaReportada,
+    diagnosticoTecnico: diagnostico,
+    mecanicoAsignado: mecanico,
+    estado,
+    vehiculo: {
+      ...order.vehiculo,
+      patente,
+      marca,
+      modelo,
+      anio,
+      kilometraje,
+      nivelCombustible,
+      observacionesVisuales,
+    },
+    servicios,
+    totalEstimado: calculateTotal(),
+  });
+
+  const handleDownloadPDF = () => {
+    try {
+      downloadOrderPDF(getCurrentOrderSnapshot());
+      showSuccess('PDF Generado Exitosamente', `Se descargó el comprobante de la orden ${order.numeroOrden}.`);
+    } catch (error) {
+      console.error('Error al generar el PDF de la orden:', error);
+      showError('Error al Generar PDF', 'Ocurrió un problema al procesar la descarga.');
+    }
+  };
+
+  const handleSendWhatsApp = () => {
+    try {
+      sendOrderWhatsApp(getCurrentOrderSnapshot());
+      showSuccess('WhatsApp Abierto', 'Se generó el mensaje de la orden para enviar al cliente.');
+    } catch (error) {
+      console.error('Error al abrir WhatsApp:', error);
+      showError('Error de WhatsApp', 'No se pudo abrir la aplicación de WhatsApp.');
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
       <div className="bg-white rounded-2xl max-w-3xl w-full flex flex-col max-h-[92vh] shadow-2xl border border-slate-200 overflow-hidden">
@@ -243,7 +289,27 @@ export function WorkOrderDetailModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSendWhatsApp}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Enviar resumen de la orden por WhatsApp"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Enviar</span> WhatsApp
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadPDF}
+              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 border border-slate-800 transition-colors cursor-pointer"
+              title="Descargar orden de trabajo en PDF"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Imprimir /</span> PDF
+            </button>
+
             <select
               value={estado}
               onChange={(e) => setEstado(e.target.value as OrderStatus)}
@@ -256,7 +322,7 @@ export function WorkOrderDetailModal({
 
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 text-2xl font-bold leading-none p-1"
+              className="text-slate-400 hover:text-slate-600 text-2xl font-bold leading-none p-1 cursor-pointer"
             >
               &times;
             </button>
@@ -416,7 +482,7 @@ export function WorkOrderDetailModal({
                 <label className="text-[11px] font-semibold text-slate-600">Combustible</label>
                 <select
                   value={nivelCombustible}
-                  onChange={(e) => setNivelCombustible(e.target.value)}
+                  onChange={(e) => setNivelCombustible(e.target.value as any)}
                   className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg text-slate-900"
                 >
                   <option value="Reserva">Reserva</option>
@@ -817,11 +883,29 @@ export function WorkOrderDetailModal({
               )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSendWhatsApp}
+                className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Enviar por WhatsApp
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadPDF}
+                className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 border border-slate-800 transition-colors cursor-pointer"
+              >
+                <Printer className="w-4 h-4 text-amber-400" />
+                Imprimir / PDF
+              </button>
+
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
               >
                 Cancelar
               </button>
@@ -829,7 +913,7 @@ export function WorkOrderDetailModal({
               <button
                 type="button"
                 onClick={handleSaveChanges}
-                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5"
+                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
               >
                 <Save className="w-4 h-4" />
                 Guardar Cambios

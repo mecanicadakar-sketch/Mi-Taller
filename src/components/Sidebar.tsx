@@ -21,6 +21,9 @@ import {
   FileSpreadsheet,
   MessageSquare,
   RotateCcw,
+  Trash2,
+  Share2,
+  Settings,
 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { Workshop } from '../types/tallerya';
@@ -43,7 +46,11 @@ interface SidebarProps {
   onOpenMechanicsModal: () => void;
   onOpenSubscriptionModal: () => void;
   onOpenAdminPanel?: () => void;
+  onOpenDeleteData?: () => void;
   onInstallApp?: () => void;
+  onOpenGuideAssistant?: () => void;
+  onCopyClientPortalLink?: () => void;
+  onOpenClientPortal?: () => void;
 }
 
 export function Sidebar({
@@ -64,7 +71,11 @@ export function Sidebar({
   onOpenMechanicsModal,
   onOpenSubscriptionModal,
   onOpenAdminPanel,
+  onOpenDeleteData,
   onInstallApp,
+  onOpenGuideAssistant,
+  onCopyClientPortalLink,
+  onOpenClientPortal,
 }: SidebarProps) {
   const menuItems = [
     {
@@ -94,6 +105,18 @@ export function Sidebar({
       id: 'budgets',
       label: 'Presupuestos',
       icon: FileText,
+    },
+    {
+      id: 'auxilio_ia',
+      label: 'Asistente Auxilio IA',
+      icon: Sparkles,
+      badge: 'IA',
+      badgeColor: 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black',
+    },
+    {
+      id: 'settings',
+      label: 'Configurar Taller',
+      icon: Settings,
     },
   ];
 
@@ -235,6 +258,21 @@ export function Sidebar({
           <span>Mecánicos / Personal</span>
         </button>
 
+        {onOpenGuideAssistant && (
+          <button
+            onClick={onOpenGuideAssistant}
+            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold text-sm bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all shadow-xs"
+          >
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-5 h-5 text-amber-400 animate-pulse" />
+              <span>Asistente Guía</span>
+            </div>
+            <span className="px-2 py-0.5 text-[10px] rounded-full font-extrabold bg-amber-500 text-slate-950 uppercase tracking-wider">
+              AYUDA
+            </span>
+          </button>
+        )}
+
         {onOpenWhatsAppReminders && (
           <button
             onClick={onOpenWhatsAppReminders}
@@ -314,20 +352,61 @@ export function Sidebar({
           </button>
         )}
 
+        {currentUser && onOpenDeleteData && (
+          <button
+            onClick={onOpenDeleteData}
+            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm hover:bg-red-950/50 text-red-400 hover:text-red-300 border border-red-900/40 transition-all shadow-xs"
+          >
+            <div className="flex items-center gap-3">
+              <Trash2 className="w-5 h-5 text-red-400" />
+              <span className="font-bold">Eliminar Datos</span>
+            </div>
+            <span className="px-2 py-0.5 text-[10px] rounded-full font-bold bg-red-950 text-red-400 border border-red-800 uppercase tracking-wider">
+              Borrar
+            </span>
+          </button>
+        )}
+
         <div className="pt-3 border-t border-slate-800 mt-3 space-y-2">
           <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Portal para Dueños de Vehículos
+            Servicios para Clientes & Conductores
           </div>
-          <button
-            onClick={onOpenClientLookup}
-            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-amber-500/10 to-amber-500/5 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all shadow-xs"
-          >
-            <Car className="w-5 h-5 text-amber-400 shrink-0" />
-            <div className="text-left">
-              <span className="block leading-tight">Consulta por Patente</span>
-              <span className="text-[10px] text-slate-400 font-normal">Historial online para clientes</span>
-            </div>
-          </button>
+          <div className="space-y-2">
+            {onCopyClientPortalLink && (
+              <button
+                onClick={onCopyClientPortalLink}
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-sm bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 hover:bg-emerald-900/60 transition-all shadow-xs"
+              >
+                <Share2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                <div className="text-left">
+                  <span className="block leading-tight font-extrabold">Copiar Link para Clientes</span>
+                  <span className="text-[10px] text-emerald-300/80 font-normal">Para enviar por WhatsApp</span>
+                </div>
+              </button>
+            )}
+
+            <button
+              onClick={onOpenClientLookup}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-amber-500/10 to-amber-500/5 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all shadow-xs"
+            >
+              <Car className="w-5 h-5 text-amber-400 shrink-0" />
+              <div className="text-left">
+                <span className="block leading-tight font-bold">Consulta por Patente</span>
+                <span className="text-[10px] text-slate-400 font-normal">Historial online para clientes</span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('auxilio_ia')}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 transition-all shadow-xs"
+            >
+              <Sparkles className="w-5 h-5 fill-slate-950 text-slate-950 shrink-0" />
+              <div className="text-left">
+                <span className="block font-black leading-tight">Auxilio Mecánico IA</span>
+                <span className="text-[10px] text-slate-900 font-semibold">Asistente técnico en ruta</span>
+              </div>
+            </button>
+          </div>
         </div>
       </nav>
     </aside>
