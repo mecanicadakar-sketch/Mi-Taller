@@ -1240,4 +1240,43 @@ export async function savePricingSettings(settings: PricingSettings): Promise<vo
   }
 }
 
+// ---------------------------------------------------------
+// CONFIGURACIÓN Y SERVICIO DE GEMINI IA
+// ---------------------------------------------------------
+export const GEMINI_CONFIG = {
+  defaultModel: 'gemini-2.5-flash',
+  fallbackModel: 'gemini-flash-latest',
+  apiEndpoint: '/api/ai/auxilio-mecanico',
+};
+
+export async function analyzeFailureWithGemini(
+  problemDescription: string,
+  vehicleInfo?: { make?: string; model?: string; year?: string; fuelType?: string },
+  imageBase64?: string,
+  imageMimeType?: string
+): Promise<{ response: string }> {
+  const res = await fetch(GEMINI_CONFIG.apiEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ problemDescription, vehicleInfo, imageBase64, imageMimeType }),
+  });
+
+  const responseText = await res.text();
+  let data: any = {};
+  try {
+    data = JSON.parse(responseText);
+  } catch (e) {
+    if (!res.ok) {
+      throw new Error(`Error en el servidor (${res.status}). Verifique la configuración en Vercel.`);
+    }
+    throw new Error('Respuesta del servidor no es un JSON válido.');
+  }
+
+  if (!res.ok) {
+    throw new Error(data.message || data.error || 'Error al comunicarse con la IA de Gemini.');
+  }
+
+  return data;
+}
+
 
