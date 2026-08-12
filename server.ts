@@ -91,13 +91,32 @@ Utiliza un tono empático, sumamente claro y estructurado con viñetas y textos 
         ];
       }
 
-      const result = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: contents,
-      });
+      const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      let responseText = '';
+      let lastError: any = null;
+
+      for (const modelName of candidateModels) {
+        try {
+          const result = await ai.models.generateContent({
+            model: modelName,
+            contents: contents,
+          });
+          if (result && result.text) {
+            responseText = result.text;
+            break;
+          }
+        } catch (err: any) {
+          console.warn(`Error con modelo ${modelName}:`, err?.message || err);
+          lastError = err;
+        }
+      }
+
+      if (!responseText) {
+        throw lastError || new Error('No se pudo obtener respuesta del asistente.');
+      }
 
       return res.json({
-        response: result.text || 'No se pudo obtener respuesta del asistente.',
+        response: responseText,
       });
     } catch (error: any) {
       console.error('Error in Gemini Auxilio API:', error);
