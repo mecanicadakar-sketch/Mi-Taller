@@ -134,10 +134,19 @@ export function AuxilioMecanicoIA({ onOpenNewWorkOrder, workshopPhone, workshopN
         }),
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        if (!res.ok) {
+          throw new Error(`Error en el servidor (${res.status}). Verifique la configuración del backend o la API Key en Vercel.`);
+        }
+        throw new Error('Respuesta no válida del servidor.');
+      }
 
       if (!res.ok) {
-        throw new Error(data.message || 'Error al comunicarse con la IA de auxilio.');
+        throw new Error(data.message || data.error || 'Error al comunicarse con la IA de auxilio.');
       }
 
       setResponse(data.response);
