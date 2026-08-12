@@ -92,7 +92,7 @@ Utiliza un tono empático, sumamente claro y estructurado con viñetas y textos 
       }
 
       const result = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash',
         contents: contents,
       });
 
