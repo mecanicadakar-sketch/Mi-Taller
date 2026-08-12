@@ -42,7 +42,6 @@ import { GoogleSheetsImportModal } from './components/GoogleSheetsImportModal';
 import { WhatsAppReminderModal } from './components/WhatsAppReminderModal';
 import { DeleteDataModal } from './components/DeleteDataModal';
 import { GuideAssistantModal } from './components/GuideAssistantModal';
-import { AuxilioMecanicoIA } from './components/AuxilioMecanicoIA';
 import { WorkshopSettingsView } from './components/WorkshopSettingsView';
 import { ClientPortalView } from './components/ClientPortalView';
 import { useToast } from './context/ToastContext';
@@ -1140,16 +1139,6 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'auxilio_ia' && (
-            <AuxilioMecanicoIA
-              onOpenNewWorkOrder={(symptom) => {
-                setPreselectedClient(undefined);
-                setPreselectedVehicle(undefined);
-                setShowNewWorkOrderModal(true);
-              }}
-            />
-          )}
-
           {activeTab === 'settings' && (
             <WorkshopSettingsView
               workshop={workshop}
@@ -1280,16 +1269,6 @@ export default function App() {
           )}
         </button>
 
-        <button
-          onClick={() => setActiveTab('auxilio_ia')}
-          className={`flex flex-col items-center gap-0.5 p-1 rounded-lg ${
-            activeTab === 'auxilio_ia' ? 'text-amber-400 font-bold' : 'hover:text-white'
-          }`}
-        >
-          <Sparkles className="w-5 h-5 text-amber-400" />
-          <span>Auxilio IA</span>
-        </button>
-
         {/* Subscription Plan Button for Mobile */}
         <button
           onClick={() => setShowSubscriptionModal(true)}
@@ -1346,7 +1325,6 @@ export default function App() {
         isOpen={showClientLookupModal}
         onClose={() => setShowClientLookupModal(false)}
         localWorkOrders={workOrders}
-        onOpenAuxilioIA={() => setActiveTab('auxilio_ia')}
       />
 
       {selectedOrder && (

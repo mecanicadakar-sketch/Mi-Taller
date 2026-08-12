@@ -107,13 +107,6 @@ export function Sidebar({
       icon: FileText,
     },
     {
-      id: 'auxilio_ia',
-      label: 'Asistente Auxilio IA',
-      icon: Sparkles,
-      badge: 'IA',
-      badgeColor: 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black',
-    },
-    {
       id: 'settings',
       label: 'Configurar Taller',
       icon: Settings,
@@ -393,17 +386,6 @@ export function Sidebar({
               <div className="text-left">
                 <span className="block leading-tight font-bold">Consulta por Patente</span>
                 <span className="text-[10px] text-slate-400 font-normal">Historial online para clientes</span>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('auxilio_ia')}
-              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 transition-all shadow-xs"
-            >
-              <Sparkles className="w-5 h-5 fill-slate-950 text-slate-950 shrink-0" />
-              <div className="text-left">
-                <span className="block font-black leading-tight">Auxilio Mecánico IA</span>
-                <span className="text-[10px] text-slate-900 font-semibold">Asistente técnico en ruta</span>
               </div>
             </button>
           </div>

@@ -90,13 +90,6 @@ export function DashboardView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <button
-            onClick={() => onNavigateTab('auxilio_ia')}
-            className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 text-xs sm:text-sm font-black rounded-xl transition-all shadow-md flex items-center gap-1.5"
-          >
-            <Sparkles className="w-4 h-4 fill-slate-950 text-slate-950" />
-            <span>Asistente Auxilio IA</span>
-          </button>
           {onOpenWhatsAppReminders && (
             <button
               onClick={onOpenWhatsAppReminders}

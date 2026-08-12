@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { WorkOrder, Workshop, OrderStatus } from '../types/tallerya';
 import { searchWorkOrdersByPatente } from '../services/tallerService';
 import { formatDateSpanish } from '../utils/dateUtils';
-import { AuxilioMecanicoIA } from './AuxilioMecanicoIA';
 import {
   Car,
   Search,
@@ -162,7 +161,7 @@ export function ClientPortalView({
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Consulta de Estado de Vehículos y Auxilio Mecánico
+                Consulta de Estado de Vehículos
               </p>
             </div>
           </div>
@@ -179,48 +178,11 @@ export function ClientPortalView({
             </button>
           </div>
         </div>
-
-        {/* Sub-Navigation Tabs */}
-        <div className="max-w-6xl mx-auto px-4 flex border-t border-slate-800/80">
-          <button
-            type="button"
-            onClick={() => setActivePortalTab('consulta')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-extrabold border-b-2 transition-all ${
-              activePortalTab === 'consulta'
-                ? 'border-amber-400 text-amber-400 bg-slate-800/50'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Search className="w-4 h-4" />
-            <span>Consultar por Patente</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActivePortalTab('auxilio')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-extrabold border-b-2 transition-all ${
-              activePortalTab === 'auxilio'
-                ? 'border-amber-400 text-amber-400 bg-slate-800/50'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 fill-amber-400 text-amber-400" />
-            <span>Auxilio Mecánico IA</span>
-          </button>
-        </div>
       </header>
 
       {/* Main Content Area */}
       <main className="max-w-6xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
-        {activePortalTab === 'auxilio' ? (
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl">
-            <AuxilioMecanicoIA
-              workshopPhone={workshopInfo?.telefono}
-              workshopName={workshopInfo?.nombreTaller}
-            />
-          </div>
-        ) : (
-          <div className="space-y-6">
+        <div className="space-y-6">
             {/* Search Card */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/40 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
               <div className="max-w-2xl space-y-4">
@@ -399,7 +361,6 @@ export function ClientPortalView({
               </div>
             )}
           </div>
-        )}
       </main>
 
       {/* Footer */}

@@ -177,30 +177,6 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], onOpe
             </div>
           </form>
 
-          {onOpenAuxilioIA && (
-            <div className="bg-gradient-to-r from-slate-900 to-amber-950 text-white p-4 rounded-xl border border-amber-500/30 flex items-center justify-between gap-3 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30 shrink-0">
-                  <Sparkles className="w-5 h-5 fill-amber-400" />
-                </div>
-                <div>
-                  <h4 className="font-extrabold text-sm text-white">¿Problemas mecánicos o vehículo varado en ruta?</h4>
-                  <p className="text-xs text-slate-300">Consulta gratis al Asistente IA Gemini para un diagnóstico rápido.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenAuxilioIA();
-                }}
-                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs transition-colors shrink-0"
-              >
-                Asistente IA
-              </button>
-            </div>
-          )}
-
           {/* Results Area */}
           {hasSearched && !searching && (
             <div>

@@ -507,17 +507,6 @@ export function Header({
           <span>Patente</span>
         </button>
 
-        {onNavigateTab && (
-          <button
-            onClick={() => onNavigateTab('auxilio_ia')}
-            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 text-xs font-extrabold rounded-xl shadow-xs transition-colors shrink-0"
-            title="Asistente de Auxilio Mecánico con IA Gemini"
-          >
-            <Sparkles className="w-4 h-4 fill-slate-950" />
-            <span>Auxilio IA</span>
-          </button>
-        )}
-
         <button
           onClick={onNewWorkOrder}
           className="inline-flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs sm:text-sm font-bold rounded-xl shadow-xs transition-all active:scale-95 shrink-0"
