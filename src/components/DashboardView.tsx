@@ -1,5 +1,5 @@
 import { WorkOrder, InventoryItem, OrderStatus } from '../types/tallerya';
-import { Wrench, Clock, CheckCircle2, AlertTriangle, ArrowRight, DollarSign, Car, Plus, AlertCircle, Search, FileSpreadsheet, MessageSquare, RefreshCw, Sparkles } from 'lucide-react';
+import { Wrench, Clock, CheckCircle2, AlertTriangle, ArrowRight, DollarSign, Car, Plus, AlertCircle, Search, FileSpreadsheet, MessageSquare, RefreshCw, Share2 } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 
 interface DashboardViewProps {
@@ -10,6 +10,7 @@ interface DashboardViewProps {
   onNavigateTab: (tab: string) => void;
   onOpenGoogleSheetsModal?: () => void;
   onOpenWhatsAppReminders?: () => void;
+  onCopyClientPortalLink?: () => void;
   searchTerm?: string;
   setSearchTerm?: (term: string) => void;
   isSyncing?: boolean;
@@ -32,6 +33,7 @@ export function DashboardView({
   onNavigateTab,
   onOpenGoogleSheetsModal,
   onOpenWhatsAppReminders,
+  onCopyClientPortalLink,
   searchTerm = '',
   setSearchTerm,
   isSyncing = false,
@@ -90,6 +92,16 @@ export function DashboardView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {onCopyClientPortalLink && (
+            <button
+              onClick={onCopyClientPortalLink}
+              className="px-3.5 py-2 bg-emerald-950/90 hover:bg-emerald-900 text-emerald-400 border border-emerald-800 text-xs sm:text-sm font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5"
+              title="Copiar link del portal para clientes"
+            >
+              <Share2 className="w-4 h-4 text-emerald-400" />
+              <span>Link Clientes</span>
+            </button>
+          )}
           {onOpenWhatsAppReminders && (
             <button
               onClick={onOpenWhatsAppReminders}

@@ -490,11 +490,12 @@ export function Header({
         {onCopyClientPortalLink && (
           <button
             onClick={onCopyClientPortalLink}
-            className="hidden xl:inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-800 transition-colors shadow-xs"
+            className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-800 transition-colors shadow-xs shrink-0"
             title="Copiar link para enviar a clientes por WhatsApp"
           >
-            <Share2 className="w-4 h-4 text-emerald-400" />
-            <span>Link Clientes</span>
+            <Share2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="hidden xs:inline">Link Clientes</span>
+            <span className="xs:hidden text-[11px]">Link</span>
           </button>
         )}
 

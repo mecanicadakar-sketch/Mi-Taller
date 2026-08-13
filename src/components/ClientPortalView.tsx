@@ -23,7 +23,9 @@ import {
   UserCheck,
   ChevronRight,
   ShieldAlert,
-  HelpCircle
+  HelpCircle,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 
 interface ClientPortalViewProps {
@@ -204,8 +206,8 @@ export function ClientPortalView({
                       type="text"
                       value={patenteInput}
                       onChange={(e) => setPatenteInput(e.target.value.toUpperCase())}
-                      placeholder="Ej: AB123CD o AA000AA"
-                      className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-slate-700 text-white placeholder-slate-500 rounded-2xl text-sm font-bold uppercase tracking-wider focus:outline-hidden focus:border-amber-400 transition-colors"
+                      placeholder="ABCD123"
+                      className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-slate-700 text-white placeholder:text-slate-500/60 placeholder:font-normal rounded-2xl text-sm font-bold uppercase tracking-wider focus:outline-hidden focus:border-amber-400 transition-colors"
                       required
                     />
                   </div>
@@ -224,6 +226,21 @@ export function ClientPortalView({
                     )}
                   </button>
                 </form>
+                <div className="pt-3 border-t border-slate-800/80 mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <p className="text-xs text-slate-400 font-medium">
+                    Ingrese el Numero de patente Aui.
+                  </p>
+                  <a
+                    href="https://tallerya.vercel.app"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-extrabold transition-all shadow-2xs self-start sm:self-auto"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>Directorio de Servicio Para Vehículos</span>
+                    <ExternalLink className="w-3 h-3 text-amber-400 shrink-0" />
+                  </a>
+                </div>
               </div>
             </div>
 

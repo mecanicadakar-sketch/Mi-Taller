@@ -1076,6 +1076,7 @@ export default function App() {
               onNavigateTab={setActiveTab}
               onOpenGoogleSheetsModal={() => setShowGoogleSheetsModal(true)}
               onOpenWhatsAppReminders={() => setShowWhatsAppModal(true)}
+              onCopyClientPortalLink={handleCopyClientPortalLink}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               isSyncing={isSyncing}
