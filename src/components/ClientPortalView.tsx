@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { WorkOrder, Workshop, OrderStatus } from '../types/tallerya';
 import { searchWorkOrdersByPatente } from '../services/tallerService';
+import { resolveProximoKm } from '../services/whatsappReminderService';
 import { formatDateSpanish } from '../utils/dateUtils';
+import { extractOrderFinancials } from '../utils/orderShareUtils';
 import {
   Car,
   Search,
@@ -25,7 +27,8 @@ import {
   ShieldAlert,
   HelpCircle,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Package
 } from 'lucide-react';
 
 interface ClientPortalViewProps {
@@ -277,6 +280,7 @@ export function ClientPortalView({
                     <div className="grid grid-cols-1 gap-4">
                       {results.map((order) => {
                         const taller = workshops[order.tallerId] || workshopInfo;
+                        const financials = extractOrderFinancials(order);
                         return (
                           <div
                             key={order.id}
@@ -340,16 +344,93 @@ export function ClientPortalView({
                               </div>
                             </div>
 
-                            {/* Works Performed if any */}
-                            {order.servicios && order.servicios.length > 0 && (
+                            {/* Mantenimiento Preventivo Checklist if present */}
+                            {order.mantenimiento && (
+                              <div className="bg-emerald-950/30 border border-emerald-800/50 rounded-2xl p-4 space-y-2 text-xs">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <span className="font-extrabold text-emerald-300 flex items-center gap-1.5 text-xs">
+                                    <Sparkles className="w-4 h-4 text-emerald-400" />
+                                    <span>Service de Mantenimiento Preventivo ({order.mantenimiento.intervaloKm?.toLocaleString() || 10000} km)</span>
+                                  </span>
+                                  <span className="bg-emerald-800/80 text-emerald-100 font-extrabold text-[10px] px-2.5 py-1 rounded-lg border border-emerald-600/40">
+                                    Próximo Service: {resolveProximoKm(
+                                      order.vehiculo?.kilometraje || 0,
+                                      order.mantenimiento.proximoKmService,
+                                      order.mantenimiento.intervaloKm
+                                    ).toLocaleString()} km
+                                  </span>
+                                </div>
+
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                  {order.mantenimiento.aceiteMotor && (
+                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                      ✓ Aceite Motor ({order.mantenimiento.tipoAceiteMotor || 'Sintético'})
+                                    </span>
+                                  )}
+                                  {order.mantenimiento.filtroAceite && (
+                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                      ✓ Filtro Aceite
+                                    </span>
+                                  )}
+                                  {order.mantenimiento.filtroAire && (
+                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                      ✓ Filtro Aire
+                                    </span>
+                                  )}
+                                  {order.mantenimiento.filtroCombustible && (
+                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                      ✓ Filtro Combustible
+                                    </span>
+                                  )}
+                                  {order.mantenimiento.filtroHabitaculo && (
+                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                      ✓ Filtro Habitáculo (A/A)
+                                    </span>
+                                  )}
+                                  {order.mantenimiento.filtroCajaATF && (
+                                    <span className="bg-amber-950/60 border border-amber-700/60 text-amber-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                      ✓ Filtro Caja ATF
+                                    </span>
+                                  )}
+                                  {order.mantenimiento.aceiteCajaAutomatica && (
+                                    <span className="bg-amber-950/60 border border-amber-700/60 text-amber-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                      ⚡ Aceite Caja Auto (ATF)
+                                    </span>
+                                  )}
+                                  {order.mantenimiento.correaDistribucion && (
+                                    <span className="bg-rose-950/60 border border-rose-700/60 text-rose-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                      ⚡ Kit Correa Distribución
+                                    </span>
+                                  )}
+                                  {order.mantenimiento.bujias && (
+                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                      ✓ Bujías de Encendido
+                                    </span>
+                                  )}
+                                  {order.mantenimiento.pastillasFreno && (
+                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                      ✓ Pastillas de Freno
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Works Performed (Mano de Obra) */}
+                            {financials.servicios.length > 0 && (
                               <div className="space-y-2">
-                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Servicios e Intervenciones:</p>
+                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Wrench className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>Tareas Realizadas / Mano de Obra:</span>
+                                </p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  {order.servicios.map((servicio, idx) => (
+                                  {financials.servicios.map((servicio, idx) => (
                                     <div key={idx} className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 flex items-center justify-between text-xs">
                                       <span className="text-slate-200 font-medium">{servicio.descripcion}</span>
-                                      {servicio.costoManoObra > 0 && (
-                                        <span className="font-bold text-slate-400 ml-2">${servicio.costoManoObra.toLocaleString('es-AR')}</span>
+                                      {servicio.costoManoObra > 0 ? (
+                                        <span className="font-bold text-slate-300 ml-2">${servicio.costoManoObra.toLocaleString('es-AR')}</span>
+                                      ) : (
+                                        <span className="text-slate-500 ml-2">Incluido</span>
                                       )}
                                     </div>
                                   ))}
@@ -357,17 +438,76 @@ export function ClientPortalView({
                               </div>
                             )}
 
-                            {/* Footer Summary */}
-                            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/80 text-xs">
-                              <span className="text-slate-400">
-                                Estado actualizado automáticamente por el sistema de gestión del taller.
-                              </span>
-                              {order.totalEstimado > 0 && (
-                                <div className="text-right">
-                                  <span className="text-slate-400 mr-2">Monto Estimado:</span>
-                                  <span className="text-lg font-black text-amber-400">${order.totalEstimado.toLocaleString('es-AR')}</span>
+                            {/* Spare parts used (Repuestos Utilizados) */}
+                            {financials.repuestos.length > 0 && (
+                              <div className="space-y-2">
+                                <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Package className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>Repuestos e Insumos Utilizados ({financials.repuestos.length}):</span>
+                                </p>
+                                <div className="bg-slate-950/70 rounded-2xl border border-slate-800/80 overflow-hidden text-xs">
+                                  <table className="w-full text-left">
+                                    <thead className="bg-slate-800/50 text-slate-400 font-bold border-b border-slate-800">
+                                      <tr>
+                                        <th className="py-2.5 px-3">Repuesto / Detalle</th>
+                                        <th className="py-2.5 px-3 text-center">Cant</th>
+                                        <th className="py-2.5 px-3 text-right">P. Unitario</th>
+                                        <th className="py-2.5 px-3 text-right">Subtotal</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800/60">
+                                      {financials.repuestos.map((r, rIdx) => (
+                                        <tr key={rIdx} className="hover:bg-slate-900/50">
+                                          <td className="py-2.5 px-3 text-slate-200 font-semibold">
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                                              <span>{r.nombre}</span>
+                                            </div>
+                                            {r.servicioDescripcion && r.servicioDescripcion !== 'Repuestos e Insumos' && (
+                                              <span className="text-[10px] text-slate-400 block pl-3">
+                                                Para: {r.servicioDescripcion}
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-center font-bold text-amber-400">
+                                            {r.cantidad}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right text-slate-400">
+                                            ${r.precioUnitario.toLocaleString('es-AR')}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right font-bold text-white">
+                                            ${r.subtotal.toLocaleString('es-AR')}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
                                 </div>
-                              )}
+                              </div>
+                            )}
+
+                            {/* Footer Summary with Discriminated Totals */}
+                            <div className="space-y-2 pt-3 border-t border-slate-800/80 text-xs">
+                              <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-950/60 p-3 rounded-2xl border border-slate-800/60">
+                                <div className="space-y-1 text-slate-400">
+                                  {financials.totalManoObra > 0 && (
+                                    <p>Mano de Obra: <strong className="text-slate-200">${financials.totalManoObra.toLocaleString('es-AR')}</strong></p>
+                                  )}
+                                  {financials.totalRepuestos > 0 && (
+                                    <p>Repuestos e Insumos: <strong className="text-amber-400">${financials.totalRepuestos.toLocaleString('es-AR')}</strong></p>
+                                  )}
+                                </div>
+
+                                {financials.totalGeneral > 0 && (
+                                  <div className="text-right">
+                                    <span className="text-slate-400 mr-2 text-xs">Total del Servicio:</span>
+                                    <span className="text-xl font-black text-amber-400">${financials.totalGeneral.toLocaleString('es-AR')}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500">
+                                Estado e información sincronizados en tiempo real por el sistema de gestión del taller.
+                              </p>
                             </div>
                           </div>
                         );

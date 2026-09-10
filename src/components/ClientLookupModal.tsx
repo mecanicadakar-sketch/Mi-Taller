@@ -3,6 +3,7 @@ import { WorkOrder, Workshop, OrderStatus } from '../types/tallerya';
 import { searchWorkOrdersByPatente } from '../services/tallerService';
 import { resolveProximoKm } from '../services/whatsappReminderService';
 import { formatDateSpanish } from '../utils/dateUtils';
+import { extractOrderFinancials } from '../utils/orderShareUtils';
 import {
   Car,
   Search,
@@ -21,7 +22,8 @@ import {
   Printer,
   Sparkles,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Package
 } from 'lucide-react';
 
 interface ClientLookupModalProps {
@@ -219,6 +221,7 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], onOpe
 
                     {results.map((order) => {
                       const workshopInfo = order.tallerId ? workshops[order.tallerId] : null;
+                      const financials = extractOrderFinancials(order);
 
                       return (
                         <div
@@ -359,49 +362,116 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], onOpe
                             </div>
                           )}
 
-                          {/* Services & Parts */}
-                          {order.servicios && order.servicios.length > 0 && (
-                            <div>
-                              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
-                                Repuestos y Tareas Realizadas
+                          {/* Services (Mano de Obra) */}
+                          {financials.servicios.length > 0 && (
+                            <div className="space-y-1.5">
+                              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <Wrench className="w-3.5 h-3.5 text-blue-600" />
+                                <span>Tareas Realizadas / Mano de Obra</span>
                               </span>
                               <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden text-xs">
                                 <table className="w-full text-left">
                                   <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
                                     <tr>
-                                      <th className="py-2 px-3">Descripción</th>
-                                      <th className="py-2 px-3 text-center">Cant</th>
-                                      <th className="py-2 px-3 text-right">Monto</th>
+                                      <th className="py-2 px-3">Descripción del Trabajo</th>
+                                      <th className="py-2 px-3 text-right">Mano de Obra</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-200">
-                                    {order.servicios.map((s) => {
-                                      const totalRepuestos = s.repuestosUtilizados?.reduce((acc, r) => acc + (r.cantidad * r.precioUnitario), 0) || 0;
-                                      const subtotal = (s.costoManoObra || 0) + totalRepuestos;
-                                      return (
-                                        <tr key={s.id}>
-                                          <td className="py-2 px-3 font-medium text-slate-800">
-                                            {s.descripcion}
-                                          </td>
-                                          <td className="py-2 px-3 text-center">1</td>
-                                          <td className="py-2 px-3 text-right font-semibold text-slate-900">
-                                            ${subtotal.toLocaleString('es-AR')}
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
+                                    {financials.servicios.map((s, idx) => (
+                                      <tr key={idx} className="hover:bg-slate-100/50">
+                                        <td className="py-2 px-3 font-medium text-slate-800">
+                                          {s.descripcion}
+                                        </td>
+                                        <td className="py-2 px-3 text-right font-semibold text-slate-900">
+                                          {s.costoManoObra > 0
+                                            ? `$${s.costoManoObra.toLocaleString('es-AR')}`
+                                            : <span className="text-slate-600 font-normal">Incluido</span>}
+                                        </td>
+                                      </tr>
+                                    ))}
                                   </tbody>
                                 </table>
                               </div>
                             </div>
                           )}
 
-                          {/* Total Cost */}
-                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                            <span className="text-slate-600 font-bold">Total del Servicio:</span>
-                            <span className="text-lg font-black text-slate-900">
-                              ${order.totalEstimado.toLocaleString('es-AR')}
-                            </span>
+                          {/* Repuestos e Insumos Utilizados */}
+                          {financials.repuestos.length > 0 ? (
+                            <div className="space-y-1.5">
+                              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <Package className="w-3.5 h-3.5 text-amber-600" />
+                                <span>Repuestos e Insumos Utilizados ({financials.repuestos.length})</span>
+                              </span>
+                              <div className="bg-amber-50/40 rounded-lg border border-amber-200/80 overflow-hidden text-xs">
+                                <table className="w-full text-left">
+                                  <thead className="bg-amber-100/70 text-amber-900 font-bold border-b border-amber-200">
+                                    <tr>
+                                      <th className="py-2 px-3">Repuesto / Insumo</th>
+                                      <th className="py-2 px-3 text-center">Cant</th>
+                                      <th className="py-2 px-3 text-right">P. Unitario</th>
+                                      <th className="py-2 px-3 text-right">Subtotal</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-amber-200/60 bg-white/60">
+                                    {financials.repuestos.map((r, rIdx) => (
+                                      <tr key={rIdx} className="hover:bg-amber-50/80">
+                                        <td className="py-2 px-3 font-semibold text-slate-900">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                            <span>{r.nombre}</span>
+                                          </div>
+                                          {r.servicioDescripcion && r.servicioDescripcion !== 'Repuestos e Insumos' && (
+                                            <span className="text-[10px] text-slate-600 block pl-3">
+                                              Asociado a: {r.servicioDescripcion}
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3 text-center font-bold text-slate-700">
+                                          {r.cantidad}
+                                        </td>
+                                        <td className="py-2 px-3 text-right text-slate-600">
+                                          ${r.precioUnitario.toLocaleString('es-AR')}
+                                        </td>
+                                        <td className="py-2 px-3 text-right font-bold text-slate-900">
+                                          ${r.subtotal.toLocaleString('es-AR')}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex items-center justify-between">
+                              <span className="flex items-center gap-1.5">
+                                <Package className="w-3.5 h-3.5 text-slate-600" />
+                                <span>Repuestos e Insumos:</span>
+                              </span>
+                              <span className="font-medium text-slate-600">No se registraron repuestos para este servicio</span>
+                            </div>
+                          )}
+
+                          {/* Cost Breakdown & Total */}
+                          <div className="pt-3 border-t border-slate-200 space-y-1.5 bg-slate-50/60 p-3 rounded-xl border">
+                            <div className="flex items-center justify-between text-xs text-slate-600">
+                              <span>Subtotal Mano de Obra:</span>
+                              <span className="font-semibold text-slate-700">
+                                ${financials.totalManoObra.toLocaleString('es-AR')}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-slate-600">
+                              <span>Subtotal Repuestos e Insumos:</span>
+                              <span className="font-semibold text-amber-700">
+                                ${financials.totalRepuestos.toLocaleString('es-AR')}
+                              </span>
+                            </div>
+                            <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                              <span className="text-xs font-extrabold text-slate-900">Total del Servicio:</span>
+                              <span className="text-lg font-black text-slate-900">
+                                ${financials.totalGeneral.toLocaleString('es-AR')}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       );
