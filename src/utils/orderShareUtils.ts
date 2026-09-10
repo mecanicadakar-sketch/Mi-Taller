@@ -12,6 +12,106 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   entregado: '🟢 Entregado',
 };
 
+export interface OrderPartItem {
+  nombre: string;
+  cantidad: number;
+  precioUnitario: number;
+  subtotal: number;
+  servicioDescripcion?: string;
+}
+
+export interface OrderFinancialSummary {
+  servicios: { descripcion: string; costoManoObra: number }[];
+  repuestos: OrderPartItem[];
+  totalManoObra: number;
+  totalRepuestos: number;
+  totalGeneral: number;
+}
+
+/**
+ * Extracts and disaggregates labor items, spare parts, and monetary totals
+ * from any WorkOrder structure, handling nested and root-level parts defensively.
+ */
+export function extractOrderFinancials(order: Partial<WorkOrder>): OrderFinancialSummary {
+  const rawServices = order.servicios || [];
+  const repuestosList: OrderPartItem[] = [];
+  const serviciosList: { descripcion: string; costoManoObra: number }[] = [];
+
+  rawServices.forEach((s) => {
+    const costoMO = Number(s.costoManoObra || 0);
+    const desc = s.descripcion?.trim() || '';
+    const isGenericPartContainer =
+      desc.toLowerCase() === 'repuestos e insumos' ||
+      desc.toLowerCase() === 'repuestos' ||
+      desc.toLowerCase() === 'insumos';
+
+    if (costoMO > 0 || (!isGenericPartContainer && desc.length > 0)) {
+      serviciosList.push({
+        descripcion: desc || 'Servicio Técnico',
+        costoManoObra: costoMO,
+      });
+    }
+
+    if (Array.isArray(s.repuestosUtilizados)) {
+      s.repuestosUtilizados.forEach((r: any) => {
+        const nombre = r.nombreRepuesto || r.nombre || r.repuestoNombre || r.descripcion || 'Repuesto';
+        const cantidad = Math.max(1, Number(r.cantidad || r.cant || r.qty || 1));
+        const precioUnitario = Number(r.precioUnitario || r.precio || r.precioVenta || r.costo || 0);
+        repuestosList.push({
+          nombre,
+          cantidad,
+          precioUnitario,
+          subtotal: cantidad * precioUnitario,
+          servicioDescripcion: desc,
+        });
+      });
+    }
+  });
+
+  // Check if root-level repuestos exist (legacy or imported structures)
+  const rootRepuestos = (order as any).repuestosUtilizados || (order as any).repuestos;
+  if (Array.isArray(rootRepuestos)) {
+    rootRepuestos.forEach((r: any) => {
+      const nombre = r.nombreRepuesto || r.nombre || r.repuestoNombre || r.descripcion || 'Repuesto';
+      const cantidad = Math.max(1, Number(r.cantidad || r.cant || r.qty || 1));
+      const precioUnitario = Number(r.precioUnitario || r.precio || r.precioVenta || r.costo || 0);
+      const alreadyExists = repuestosList.some(
+        (p) => p.nombre.toLowerCase() === nombre.toLowerCase() && p.cantidad === cantidad && p.precioUnitario === precioUnitario
+      );
+      if (!alreadyExists) {
+        repuestosList.push({
+          nombre,
+          cantidad,
+          precioUnitario,
+          subtotal: cantidad * precioUnitario,
+        });
+      }
+    });
+  }
+
+  // If there were services registered but all had cost 0 and were filtered out, preserve them
+  if (serviciosList.length === 0 && rawServices.length > 0 && repuestosList.length === 0) {
+    rawServices.forEach((s) => {
+      serviciosList.push({
+        descripcion: s.descripcion || 'Servicio Técnico',
+        costoManoObra: Number(s.costoManoObra || 0),
+      });
+    });
+  }
+
+  const totalManoObra = serviciosList.reduce((acc, s) => acc + s.costoManoObra, 0);
+  const totalRepuestos = repuestosList.reduce((acc, r) => acc + r.subtotal, 0);
+  const totalGeneral = Number(order.totalEstimado) || (totalManoObra + totalRepuestos);
+
+  return {
+    servicios: serviciosList,
+    repuestos: repuestosList,
+    totalManoObra,
+    totalRepuestos,
+    totalGeneral,
+  };
+}
+
 /**
  * Downloads a high-quality PDF document for a Work Order.
  */
