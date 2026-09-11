@@ -47,6 +47,7 @@ import { ClientPortalView } from './components/ClientPortalView';
 import { useToast } from './context/ToastContext';
 import { deduplicateClients, deduplicateWorkOrders } from './services/googleDriveImportService';
 import { calculateReminders } from './services/whatsappReminderService';
+import { isDemoMechanicName } from './utils/orderShareUtils';
 
 import {
   INITIAL_CLIENTS,
@@ -340,6 +341,33 @@ export default function App() {
 
     return () => unsubscribeFirestore();
   }, [currentUser]);
+
+  // Automatically repair existing work orders that still carry deleted demo mechanic names (e.g. Juan Pérez)
+  useEffect(() => {
+    const active = mechanics.filter((m) => m.activo);
+    const hasLegacyDemoMechanic = workOrders.some(
+      (o) => isDemoMechanicName(o.mecanicoAsignado) && !mechanics.some((m) => m.nombre === o.mecanicoAsignado)
+    );
+
+    if (hasLegacyDemoMechanic) {
+      setWorkOrders((prev) => {
+        const next = prev.map((o) => {
+          if (isDemoMechanicName(o.mecanicoAsignado) && !mechanics.some((m) => m.nombre === o.mecanicoAsignado)) {
+            const repairedName = active.length > 0 ? active[0].nombre : '';
+            const fixedOrder = { ...o, mecanicoAsignado: repairedName };
+            if (currentUser) {
+              saveWorkOrder(fixedOrder, currentUser.uid).catch(() => {});
+            }
+            return fixedOrder;
+          }
+          return o;
+        });
+        const key = currentUser ? `mitaller_${currentUser.uid}_workOrders` : 'mitaller_guest_workOrders';
+        localStorage.setItem(key, JSON.stringify(next));
+        return next;
+      });
+    }
+  }, [mechanics, workOrders.length]);
 
   // Auth Action Handlers
   const handleOpenAuth = (mode: 'login' | 'register' = 'login') => {
@@ -1326,6 +1354,7 @@ export default function App() {
         isOpen={showClientLookupModal}
         onClose={() => setShowClientLookupModal(false)}
         localWorkOrders={workOrders}
+        mechanics={mechanics}
       />
 
       {selectedOrder && (
