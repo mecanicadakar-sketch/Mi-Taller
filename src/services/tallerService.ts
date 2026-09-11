@@ -477,6 +477,23 @@ export function isDemoItem(item: any): boolean {
   return false;
 }
 
+export function isDemoMechanicName(name?: string | null): boolean {
+  if (!name) return false;
+  const n = name.trim().toLowerCase();
+  return (
+    n === 'mecanico juan pérez' ||
+    n === 'mecanico juan perez' ||
+    n === 'juan pérez' ||
+    n === 'juan perez' ||
+    n === 'mecanico pedro gómez' ||
+    n === 'mecanico pedro gomez' ||
+    n === 'pedro gómez' ||
+    n === 'pedro gomez' ||
+    n === 'ing. marcelo r.' ||
+    n === 'marcelo r.'
+  );
+}
+
 // Sync local guest data or offline items to Cloud Firestore
 export async function syncLocalDataToCloud(
   tallerId: string,
@@ -608,7 +625,7 @@ export async function searchWorkOrdersByPatente(searchPatente: string): Promise<
       }
     });
 
-    // Fetch workshop profiles for matched orders
+    // Fetch workshop profiles and active mechanics for matched orders
     const workshopsMap: Record<string, Workshop> = {};
     for (const tallerId of workshopIdsToFetch) {
       try {
@@ -616,8 +633,28 @@ export async function searchWorkOrdersByPatente(searchPatente: string): Promise<
         if (wDoc.exists()) {
           workshopsMap[tallerId] = wDoc.data() as Workshop;
         }
+
+        // Fetch workshop's mechanics to resolve demo placeholders
+        const qM = query(collection(db, 'mechanics'), where('tallerId', '==', tallerId));
+        const mSnap = await getDocs(qM);
+        const activeTallerMechanics = mSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as Mechanic))
+          .filter((m) => !isDemoItem(m) && m.activo);
+
+        // Sanitize any matched order for this taller that still has a demo mechanic placeholder
+        matchedOrders.forEach((o) => {
+          if (o.tallerId === tallerId && isDemoMechanicName(o.mecanicoAsignado)) {
+            if (activeTallerMechanics.length > 0) {
+              o.mecanicoAsignado = activeTallerMechanics[0].nombre;
+            } else {
+              o.mecanicoAsignado = '';
+            }
+            // Background repair doc in Firestore if needed
+            updateDoc(doc(db, 'workOrders', o.id), { mecanicoAsignado: o.mecanicoAsignado }).catch(() => {});
+          }
+        });
       } catch (err) {
-        console.warn('Error fetching workshop details:', err);
+        console.warn('Error fetching workshop details or mechanics:', err);
       }
     }
 
