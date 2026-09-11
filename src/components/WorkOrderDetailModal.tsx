@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { WorkOrder, OrderStatus, InventoryItem, Mechanic } from '../types/tallerya';
 import { Wrench, Car, User, Phone, CheckCircle2, Clock, Plus, Trash2, Save, Printer, Users, CheckSquare, Sparkles, Package, Download, FileText, MessageCircle } from 'lucide-react';
 import { resolveProximoKm } from '../services/whatsappReminderService';
 import { formatDateSpanish, parseAndNormalizeDate } from '../utils/dateUtils';
 import { useToast } from '../context/ToastContext';
-import { downloadOrderPDF, sendOrderWhatsApp } from '../utils/orderShareUtils';
+import { downloadOrderPDF, sendOrderWhatsApp, resolveAssignedMechanic, isDemoMechanicName } from '../utils/orderShareUtils';
 
 interface WorkOrderDetailModalProps {
   order: WorkOrder;
@@ -65,8 +65,18 @@ export function WorkOrderDetailModal({
   const [fallaReportada, setFallaReportada] = useState(order.fallaReportada || '');
   const [estado, setEstado] = useState<OrderStatus>(order.estado);
   const [diagnostico, setDiagnostico] = useState(order.diagnosticoTecnico || '');
-  const [mecanico, setMecanico] = useState(order.mecanicoAsignado || 'Mecanico Juan Pérez');
+  const [mecanico, setMecanico] = useState(() => {
+    return resolveAssignedMechanic(order.mecanicoAsignado, mechanics);
+  });
   const [servicios, setServicios] = useState(order.servicios || []);
+
+  // Synchronize mechanic if mechanics change or load asynchronously
+  useEffect(() => {
+    const resolved = resolveAssignedMechanic(mecanico || order.mecanicoAsignado, mechanics);
+    if (resolved && resolved !== mecanico) {
+      setMecanico(resolved);
+    }
+  }, [mechanics]);
 
   // Form for adding a new service or parts line
   const [nuevaTarea, setNuevaTarea] = useState('');
@@ -394,24 +404,19 @@ export function WorkOrderDetailModal({
                 }}
                 className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg font-semibold text-slate-900"
               >
-                {mecanico && !mechanics.some((m) => m.nombre === mecanico) && (
-                  <option value={mecanico}>{mecanico}</option>
-                )}
-                {mechanics.filter(m => m.activo).length > 0 ? (
-                  mechanics
-                    .filter((m) => m.activo)
-                    .map((m) => (
-                      <option key={m.id} value={m.nombre}>
-                        {m.nombre} {m.especialidad ? `(${m.especialidad})` : ''}
-                      </option>
-                    ))
-                ) : (
-                  <>
-                    <option value="Mecanico Juan Pérez">Juan Pérez (Mecánico General)</option>
-                    <option value="Mecanico Pedro Gómez">Pedro Gómez (Especialista Frenos)</option>
-                    <option value="Ing. Marcelo R.">Marcelo R. (Diagnóstico Electrónico)</option>
-                  </>
-                )}
+                <option value="">-- Sin mecánico asignado (Equipo del Taller) --</option>
+                {mecanico &&
+                  !isDemoMechanicName(mecanico) &&
+                  !mechanics.some((m) => m.nombre === mecanico) && (
+                    <option value={mecanico}>{mecanico}</option>
+                  )}
+                {mechanics
+                  .filter((m) => m.activo)
+                  .map((m) => (
+                    <option key={m.id} value={m.nombre}>
+                      {m.nombre} {m.especialidad ? `(${m.especialidad})` : ''}
+                    </option>
+                  ))}
                 <option value="__NEW__" className="font-bold text-amber-700 bg-amber-50">
                   + Otro mecánico...
                 </option>

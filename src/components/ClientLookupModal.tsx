@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { WorkOrder, Workshop, OrderStatus } from '../types/tallerya';
+import { WorkOrder, Workshop, OrderStatus, Mechanic } from '../types/tallerya';
 import { searchWorkOrdersByPatente } from '../services/tallerService';
 import { resolveProximoKm } from '../services/whatsappReminderService';
 import { formatDateSpanish } from '../utils/dateUtils';
-import { extractOrderFinancials } from '../utils/orderShareUtils';
+import { extractOrderFinancials, resolveAssignedMechanic } from '../utils/orderShareUtils';
 import {
   Car,
   Search,
@@ -30,10 +30,11 @@ interface ClientLookupModalProps {
   isOpen: boolean;
   onClose: () => void;
   localWorkOrders?: WorkOrder[];
+  mechanics?: Mechanic[];
   onOpenAuxilioIA?: () => void;
 }
 
-export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], onOpenAuxilioIA }: ClientLookupModalProps) {
+export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mechanics = [], onOpenAuxilioIA }: ClientLookupModalProps) {
   const [patenteInput, setPatenteInput] = useState('');
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -238,9 +239,12 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], onOpe
                               <p className="text-xs text-slate-600 flex items-center gap-1 mt-1">
                                 <Calendar className="w-3.5 h-3.5" />
                                 <span>Ingreso: {formatDateSpanish(order.fechaIngreso)}</span>
-                                {order.mecanicoAsignado && (
-                                  <span className="ml-2 font-medium text-slate-700">| Mecánico: {order.mecanicoAsignado}</span>
-                                )}
+                                {(() => {
+                                  const displayMechanic = resolveAssignedMechanic(order.mecanicoAsignado, mechanics);
+                                  return displayMechanic ? (
+                                    <span className="ml-2 font-medium text-slate-700">| Mecánico: {displayMechanic}</span>
+                                  ) : null;
+                                })()}
                               </p>
                             </div>
 

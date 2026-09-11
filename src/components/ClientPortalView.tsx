@@ -3,7 +3,7 @@ import { WorkOrder, Workshop, OrderStatus } from '../types/tallerya';
 import { searchWorkOrdersByPatente } from '../services/tallerService';
 import { resolveProximoKm } from '../services/whatsappReminderService';
 import { formatDateSpanish } from '../utils/dateUtils';
-import { extractOrderFinancials } from '../utils/orderShareUtils';
+import { extractOrderFinancials, isDemoMechanicName } from '../utils/orderShareUtils';
 import {
   Car,
   Search,
@@ -339,6 +339,9 @@ export function ClientPortalView({
                                   <p><strong className="text-slate-400">Ingreso:</strong> {formatDateSpanish(order.fechaIngreso)}</p>
                                   {order.fechaEntregaEstimada && (
                                     <p><strong className="text-slate-400">Estimado entrega:</strong> {formatDateSpanish(order.fechaEntregaEstimada)}</p>
+                                  )}
+                                  {order.mecanicoAsignado && !isDemoMechanicName(order.mecanicoAsignado) && (
+                                    <p><strong className="text-slate-400">Mecánico asignado:</strong> <span className="text-amber-400 font-semibold">{order.mecanicoAsignado}</span></p>
                                   )}
                                 </div>
                               </div>
