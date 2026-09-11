@@ -29,6 +29,58 @@ export interface OrderFinancialSummary {
 }
 
 /**
+ * Checks whether a mechanic name corresponds to the legacy demo/placeholder mechanic profiles.
+ */
+export function isDemoMechanicName(name?: string | null): boolean {
+  if (!name) return false;
+  const n = name.trim().toLowerCase();
+  return (
+    n === 'mecanico juan pérez' ||
+    n === 'mecanico juan perez' ||
+    n === 'juan pérez' ||
+    n === 'juan perez' ||
+    n === 'mecanico pedro gómez' ||
+    n === 'mecanico pedro gomez' ||
+    n === 'pedro gómez' ||
+    n === 'pedro gomez' ||
+    n === 'ing. marcelo r.' ||
+    n === 'marcelo r.'
+  );
+}
+
+/**
+ * Safely resolves the display name of the assigned mechanic:
+ * - If the mechanic is a genuine custom mechanic (or exists in the workshop mechanics), preserves it.
+ * - If it was a legacy demo placeholder (e.g. Juan Pérez) and the workshop has real active mechanics (e.g. Fabio Torres),
+ *   resolves to the active mechanic.
+ */
+export function resolveAssignedMechanic(
+  orderMechanic?: string | null,
+  availableMechanics: { nombre: string; activo?: boolean }[] = []
+): string {
+  const activeMechanics = availableMechanics.filter((m) => m.activo !== false);
+
+  if (orderMechanic && orderMechanic.trim()) {
+    const isDemo = isDemoMechanicName(orderMechanic);
+    const existsInWorkshop = availableMechanics.some(
+      (m) => m.nombre.trim().toLowerCase() === orderMechanic.trim().toLowerCase()
+    );
+
+    // If genuinely in workshop or not a demo name, keep it
+    if (!isDemo || existsInWorkshop) {
+      return orderMechanic.trim();
+    }
+  }
+
+  // If order had a demo name or was unassigned, but workshop has active mechanics
+  if (activeMechanics.length > 0) {
+    return activeMechanics[0].nombre;
+  }
+
+  return '';
+}
+
+/**
  * Extracts and disaggregates labor items, spare parts, and monetary totals
  * from any WorkOrder structure, handling nested and root-level parts defensively.
  */
