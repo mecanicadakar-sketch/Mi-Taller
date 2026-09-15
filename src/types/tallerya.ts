@@ -116,6 +116,8 @@ export interface WorkOrder {
   totalEstimado: number;
   mantenimiento?: MantenimientoChecklist;
   notasInternas?: string;
+  ultimoAviso?: string; // Fecha ISO o timestamp del último aviso de recordatorio enviado
+  ultimoAvisoWhatsApp?: string; // Registro de aviso por WhatsApp para evitar envíos duplicados
 }
 
 export interface InventoryItem {
