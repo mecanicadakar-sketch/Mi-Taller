@@ -1133,6 +1133,7 @@ export default function App() {
             <ClientsView
               clients={clients}
               workOrders={workOrders}
+              workshop={workshop}
               onAddClient={handleAddClient}
               onUpdateClient={handleAddClient}
               onDeleteClient={handleDeleteClient}
@@ -1466,6 +1467,7 @@ export default function App() {
         workOrders={workOrders}
         clients={clients}
         tallerNombre={workshop?.nombreTaller || 'MiTaller Mecánico'}
+        onUpdateWorkOrder={handleUpdateOrderDetails}
       />
 
       <DeleteDataModal
