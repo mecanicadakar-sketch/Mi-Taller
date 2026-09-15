@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Client, Vehicle, WorkOrder, OrderStatus } from '../types/tallerya';
+import { Client, Vehicle, WorkOrder, OrderStatus, Workshop } from '../types/tallerya';
 import {
   Search,
   UserPlus,
@@ -30,13 +30,18 @@ import {
   Building2,
   User,
   ShieldCheck,
+  Printer,
+  Download,
 } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 import { formatDateSpanish, parseAndNormalizeDate } from '../utils/dateUtils';
+import { VehicleReportModal } from './VehicleReportModal';
+import { downloadVehicleHistoryPDF } from '../utils/vehicleReportUtils';
 
 interface ClientsViewProps {
   clients: Client[];
   workOrders?: WorkOrder[];
+  workshop?: Workshop | null;
   onAddClient: (client: Client) => void;
   onUpdateClient?: (client: Client) => void;
   onDeleteClient?: (clientId: string) => void;
@@ -49,6 +54,7 @@ interface ClientsViewProps {
 export function ClientsView({
   clients,
   workOrders = [],
+  workshop,
   onAddClient,
   onUpdateClient,
   onDeleteClient,
@@ -61,8 +67,9 @@ export function ClientsView({
   const [showAddModal, setShowAddModal] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
 
-  // Vehicle History Modal State
+  // Vehicle History & Report Modal State
   const [selectedVehicleHistory, setSelectedVehicleHistory] = useState<{ client: Client; vehicle: Vehicle } | null>(null);
+  const [reportVehicleTarget, setReportVehicleTarget] = useState<{ client: Client; vehicle: Vehicle } | null>(null);
   const [historySearchQuery, setHistorySearchQuery] = useState('');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
@@ -498,6 +505,16 @@ export function ClientsView({
                       >
                         <History className="w-3.5 h-3.5 text-amber-400" />
                         <span>Historial ({vehicleWorkOrders.length})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setReportVehicleTarget({ client, vehicle: v })}
+                        className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold rounded-lg text-xs transition-all flex items-center gap-1 shadow-xs cursor-pointer active:scale-95"
+                        title="Generar reporte PDF o vista imprimible con el historial completo de este vehículo"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Reporte PDF</span>
                       </button>
 
                       <button
@@ -1092,7 +1109,17 @@ export function ClientsView({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-center">
+                <div className="flex items-center gap-2 self-end sm:self-center flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setReportVehicleTarget({ client, vehicle })}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    title="Abrir vista previa imprimible y descargar PDF del historial completo de este vehículo"
+                  >
+                    <Printer className="w-4 h-4 text-amber-400" />
+                    <span>Reporte PDF / Imprimir</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1382,22 +1409,45 @@ export function ClientsView({
               </div>
 
               {/* Modal Footer */}
-              <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between shrink-0">
+              <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
                 <span className="text-xs text-slate-400">
                   Total de órdenes registradas: <strong className="text-white">{vehicleWorkOrders.length}</strong>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedVehicleHistory(null)}
-                  className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
-                >
-                  Cerrar
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReportVehicleTarget({ client, vehicle })}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md"
+                    title="Generar reporte PDF o vista imprimible"
+                  >
+                    <Download className="w-4 h-4 stroke-[2.5]" />
+                    <span>Generar Reporte PDF</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVehicleHistory(null)}
+                    className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cerrar
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         );
       })()}
+
+      {/* Printable Vehicle Maintenance History Report Modal */}
+      {reportVehicleTarget && (
+        <VehicleReportModal
+          isOpen={Boolean(reportVehicleTarget)}
+          onClose={() => setReportVehicleTarget(null)}
+          client={reportVehicleTarget.client}
+          vehicle={reportVehicleTarget.vehicle}
+          workOrders={workOrders}
+          workshop={workshop}
+        />
+      )}
     </div>
   );
 }
