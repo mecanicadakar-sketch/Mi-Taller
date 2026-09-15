@@ -15,7 +15,9 @@ import {
   Car,
   ChevronRight,
   Sliders,
-  Sparkles
+  Sparkles,
+  BellOff,
+  History
 } from 'lucide-react';
 import { WorkOrder, Client } from '../types/tallerya';
 import { formatDateSpanish } from '../utils/dateUtils';
@@ -24,6 +26,7 @@ import {
   buildWhatsAppMessage,
   getWhatsAppWebLink,
   formatWhatsAppPhone,
+  registrarUltimoAviso,
   MaintenanceReminderItem,
   TwilioConfig,
 } from '../services/whatsappReminderService';
@@ -34,6 +37,7 @@ interface WhatsAppReminderModalProps {
   workOrders: WorkOrder[];
   clients: Client[];
   tallerNombre?: string;
+  onUpdateWorkOrder?: (updatedOrder: WorkOrder) => void;
 }
 
 export function WhatsAppReminderModal({
@@ -42,11 +46,13 @@ export function WhatsAppReminderModal({
   workOrders,
   clients,
   tallerNombre = 'MiTaller Mecánico',
+  onUpdateWorkOrder,
 }: WhatsAppReminderModalProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'overdue' | 'due_soon'>('all');
   const [thresholdKm, setThresholdKm] = useState<number>(5000);
   const [selectedIntervalFilter, setSelectedIntervalFilter] = useState<number | 'all'>('all');
+  const [hideRecentlyNotified, setHideRecentlyNotified] = useState(false);
   const [selectedReminder, setSelectedReminder] = useState<MaintenanceReminderItem | null>(null);
   const [customNote, setCustomNote] = useState('');
   const [showConfig, setShowConfig] = useState(false);
@@ -74,7 +80,12 @@ export function WhatsAppReminderModal({
     return reminders.filter((item) => {
       // Filter by type
       if (filterType === 'overdue' && item.estadoRecordatorio !== 'overdue') return false;
-      if (filterType === 'due_soon' && item.estadoRecordatorio !== 'due_soon' && item.estadoRecordatorio !== 'upcoming') return false;
+      if (filterType === 'due_soon' && item.estadoRecordatorio !== 'due_soon') return false;
+
+      // Filter out recently notified if toggle is active
+      if (hideRecentlyNotified && item.notificadoRecientemente) {
+        return false;
+      }
 
       // Filter by thresholdKm (Margen)
       if (thresholdKm < 999999) {
@@ -99,11 +110,11 @@ export function WhatsAppReminderModal({
 
       return matchClient || matchPhone || matchMarca || matchModelo || matchPatente;
     });
-  }, [reminders, filterType, thresholdKm, selectedIntervalFilter, searchTerm]);
+  }, [reminders, filterType, thresholdKm, selectedIntervalFilter, hideRecentlyNotified, searchTerm]);
 
   const stats = useMemo(() => {
     const overdue = reminders.filter((r) => r.estadoRecordatorio === 'overdue').length;
-    const dueSoon = reminders.filter((r) => r.estadoRecordatorio === 'due_soon' || r.estadoRecordatorio === 'upcoming').length;
+    const dueSoon = reminders.filter((r) => r.estadoRecordatorio === 'due_soon').length;
     return { total: reminders.length, overdue, dueSoon };
   }, [reminders]);
 
@@ -121,6 +132,17 @@ export function WhatsAppReminderModal({
     const link = getWhatsAppWebLink(item, tallerNombre, customNote);
     window.open(link, '_blank');
     setSentLog((prev) => new Set(prev).add(`${item.clientId}_${item.vehiculo.patente}`));
+
+    // Update work order with 'ultimoAviso' timestamp to track notifications & prevent duplicates
+    if (item.ordenTrabajoId) {
+      const targetWo = workOrders.find((w) => w.id === item.ordenTrabajoId);
+      if (targetWo) {
+        const updatedWo = registrarUltimoAviso(targetWo);
+        if (onUpdateWorkOrder) {
+          onUpdateWorkOrder(updatedWo);
+        }
+      }
+    }
   };
 
   return (
@@ -337,13 +359,31 @@ export function WhatsAppReminderModal({
                   className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-amber-300 text-xs font-bold focus:outline-hidden focus:border-amber-400"
                 >
                   <option value="all">Todos los tipos</option>
-                  <option value={5000}>5.000 km (6 meses - Aceite)</option>
-                  <option value={10000}>10.000 km (12 meses - Aceite)</option>
+                  <option value={5000}>5.000 km (6 meses - Aceite Mineral)</option>
+                  <option value={7000}>7.000 km (8 meses - Aceite Semisintético)</option>
+                  <option value={10000}>10.000 km (12 meses - Aceite Sintético)</option>
+                  <option value={20000}>20.000 km (12 meses - Mantenimiento General)</option>
                   <option value={30000}>30.000 km (12 meses - Inyección)</option>
                   <option value={50000}>50.000 km (24 meses - Caja AT)</option>
                   <option value={100000}>100.000 km (36 meses - Distribución)</option>
                 </select>
               </div>
+
+              <div className="h-4 w-px bg-slate-700 mx-1 hidden sm:block" />
+
+              {/* Toggle to hide recently notified to prevent duplicates */}
+              <button
+                onClick={() => setHideRecentlyNotified(!hideRecentlyNotified)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                  hideRecentlyNotified
+                    ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                    : 'bg-slate-800 text-slate-400 hover:text-white'
+                }`}
+                title="Ocultar vehículos notificados en los últimos 7 días para evitar avisos duplicados"
+              >
+                <BellOff className="w-3.5 h-3.5" />
+                <span>Ocultar ya avisados</span>
+              </button>
             </div>
           </div>
 
@@ -362,7 +402,9 @@ export function WhatsAppReminderModal({
             ) : (
               filteredReminders.map((item) => {
                 const key = `${item.clientId}_${item.vehiculo.patente}`;
-                const isSent = sentLog.has(key);
+                const isSentSession = sentLog.has(key);
+                const hasUltimoAviso = Boolean(item.ultimoAviso);
+                const isRecentlyNotified = item.notificadoRecientemente;
                 const phoneFormatted = formatWhatsAppPhone(item.clientTelefono);
 
                 return (
@@ -395,9 +437,26 @@ export function WhatsAppReminderModal({
                           </span>
                         )}
 
-                        {isSent && (
+                        {/* Last Notice Indicator (Duplicate Prevention) */}
+                        {hasUltimoAviso && (
+                          <span
+                            className={`text-xs px-2.5 py-0.5 rounded-full font-medium flex items-center gap-1 border ${
+                              isRecentlyNotified
+                                ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                                : 'bg-slate-800 text-slate-400 border-slate-700'
+                            }`}
+                            title={`Último aviso enviado el ${formatDateSpanish(item.ultimoAviso!)}`}
+                          >
+                            <History className="w-3 h-3 text-sky-400" />
+                            {item.diasDesdeUltimoAviso === 0
+                              ? 'Aviso enviado hoy'
+                              : `Avisado hace ${item.diasDesdeUltimoAviso} d`}
+                          </span>
+                        )}
+
+                        {isSentSession && !hasUltimoAviso && (
                           <span className="text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Enviado
+                            <CheckCircle2 className="w-3 h-3" /> Enviado ahora
                           </span>
                         )}
                       </div>
@@ -419,7 +478,7 @@ export function WhatsAppReminderModal({
                           <strong>Objetivo Próximo:</strong> {item.proximoKmService.toLocaleString('es-PY')} km
                         </span>
                         <span className="text-amber-300/90 font-medium">
-                          <strong>Intervalo:</strong> {item.intervaloKm?.toLocaleString('es-PY') || '10.000'} km ({item.maxMesesService || 12} meses)
+                          <strong>Intervalo:</strong> {item.intervaloKm?.toLocaleString('es-PY') || '5.000'} km ({item.maxMesesService || 6} meses)
                         </span>
                       </div>
 
@@ -456,13 +515,14 @@ export function WhatsAppReminderModal({
                         className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md ${
                           !item.clientTelefono
                             ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                            : isSent
-                            ? 'bg-emerald-600/80 hover:bg-emerald-600 text-white'
+                            : isRecentlyNotified || isSentSession
+                            ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30'
                             : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
                         }`}
+                        title={isRecentlyNotified ? `Ya se notificó hace ${item.diasDesdeUltimoAviso} días. Clic para reenviar si es necesario.` : undefined}
                       >
                         <Send className="w-3.5 h-3.5" />
-                        {isSent ? 'Volver a Enviar' : 'Enviar WhatsApp'}
+                        {isRecentlyNotified || isSentSession ? 'Reenviar WhatsApp' : 'Enviar WhatsApp'}
                       </button>
                     </div>
                   </div>
