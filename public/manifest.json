@@ -1,4 +1,6 @@
 {
+  "id": "/",
+  "scope": "/",
   "name": "MiTaller - Gestión de Taller Mecánico",
   "short_name": "MiTaller",
   "description": "Sistema integral de gestión para talleres mecánicos: órdenes de trabajo, inventario, clientes y presupuestos.",
