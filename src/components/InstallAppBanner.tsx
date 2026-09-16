@@ -47,6 +47,7 @@ export const InstallAppBanner: React.FC<InstallAppBannerProps> = ({
     // 4. Handle BeforeInstallPrompt event (Android, Chrome, Edge, PC, Mac)
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
+      (window as any).__pwaInstallPrompt = e;
       setDeferredPrompt(e);
 
       // Check if user previously dismissed banner
@@ -60,6 +61,7 @@ export const InstallAppBanner: React.FC<InstallAppBannerProps> = ({
 
     // Check appinstalled event
     const handleAppInstalled = () => {
+      (window as any).__pwaInstallPrompt = null;
       setDeferredPrompt(null);
       setIsStandalone(true);
       setShowBanner(false);

@@ -28,8 +28,11 @@ import {
   HelpCircle,
   Globe,
   ExternalLink,
-  Package
+  Package,
+  Download,
+  Smartphone
 } from 'lucide-react';
+import { QuickInstallGuideModal } from './QuickInstallGuideModal';
 
 interface ClientPortalViewProps {
   initialPatente?: string;
@@ -49,6 +52,64 @@ export function ClientPortalView({
   const [results, setResults] = useState<WorkOrder[]>([]);
   const [workshops, setWorkshops] = useState<Record<string, Workshop>>({});
   const [copiedLink, setCopiedLink] = useState(false);
+  const [showInstallGuideModal, setShowInstallGuideModal] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if ((window as any).__pwaInstallPrompt) {
+        setDeferredPrompt((window as any).__pwaInstallPrompt);
+      }
+
+      const handleBeforeInstall = (e: Event) => {
+        e.preventDefault();
+        (window as any).__pwaInstallPrompt = e;
+        setDeferredPrompt(e);
+      };
+
+      window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+      return () => {
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      };
+    }
+  }, []);
+
+  const handleTriggerInstallPrompt = async (): Promise<boolean> => {
+    const promptEvent = deferredPrompt || (typeof window !== 'undefined' ? (window as any).__pwaInstallPrompt : null);
+    if (promptEvent && promptEvent.prompt) {
+      promptEvent.prompt();
+      const { outcome } = await promptEvent.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        if (typeof window !== 'undefined') {
+          (window as any).__pwaInstallPrompt = null;
+        }
+        return true;
+      }
+      return false;
+    }
+    return false;
+  };
+
+  const handleInstallClick = async () => {
+    const promptEvent = deferredPrompt || (typeof window !== 'undefined' ? (window as any).__pwaInstallPrompt : null);
+    if (promptEvent && promptEvent.prompt) {
+      try {
+        promptEvent.prompt();
+        const { outcome } = await promptEvent.userChoice;
+        if (outcome === 'accepted') {
+          setDeferredPrompt(null);
+          if (typeof window !== 'undefined') {
+            (window as any).__pwaInstallPrompt = null;
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('Install prompt error:', err);
+      }
+    }
+    setShowInstallGuideModal(true);
+  };
 
   useEffect(() => {
     if (initialPatente && initialPatente.trim().length >= 3) {
@@ -174,12 +235,22 @@ export function ClientPortalView({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={handleInstallClick}
+              className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border border-amber-400"
+              title="Instalar acceso rápido en Celular, Tablet o PC"
+            >
+              <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Instalar Acceso Rápido</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handleCopyPortalLink}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
               title="Copiar link para enviar a los clientes"
             >
               {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-amber-400" />}
-              <span>{copiedLink ? '¡Link Copiado!' : 'Copiar Link del Portal'}</span>
+              <span className="hidden sm:inline">{copiedLink ? '¡Link Copiado!' : 'Copiar Link del Portal'}</span>
             </button>
           </div>
         </div>
@@ -188,6 +259,35 @@ export function ClientPortalView({
       {/* Main Content Area */}
       <main className="max-w-6xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
         <div className="space-y-6">
+            {/* Quick Access Card */}
+            <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                  <Smartphone className="w-5 h-5 stroke-[2]" />
+                </div>
+                <div>
+                  <p className="text-xs font-black text-white flex flex-wrap items-center gap-1.5">
+                    <span>Instalá el Acceso Rápido en tu Celular, Tablet o PC</span>
+                    <span className="text-[10px] bg-amber-500 text-slate-950 font-bold px-1.5 py-0.2 rounded-full">
+                      PWA Gratis
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Agrega esta app a tu pantalla de inicio para consultar tus vehículos y servicios en cualquier momento con un solo toque.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleInstallClick}
+                className="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
+              >
+                <Download className="w-4 h-4 stroke-[2.5]" />
+                <span>Instalar Acceso Rápido</span>
+              </button>
+            </div>
+
             {/* Search Card */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/40 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
               <div className="max-w-2xl space-y-4">
@@ -524,9 +624,24 @@ export function ClientPortalView({
       </main>
 
       {/* Footer */}
-      <footer className="bg-slate-900 border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+      <footer className="bg-slate-900 border-t border-slate-800 py-4 px-4 text-xs text-slate-500 flex flex-wrap items-center justify-between gap-3 max-w-6xl mx-auto w-full">
         <p>© {new Date().getFullYear()} {workshopInfo?.nombreTaller || 'MiTaller'} — Portal para Clientes & Conductores</p>
+        <button
+          type="button"
+          onClick={handleInstallClick}
+          className="text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span>Instalar Acceso Rápido (Celular, Tablet o PC)</span>
+        </button>
       </footer>
+
+      <QuickInstallGuideModal
+        isOpen={showInstallGuideModal}
+        onClose={() => setShowInstallGuideModal(false)}
+        onTriggerInstallPrompt={handleTriggerInstallPrompt}
+        canPromptDirectly={Boolean(deferredPrompt || (typeof window !== 'undefined' && (window as any).__pwaInstallPrompt))}
+      />
     </div>
   );
 }

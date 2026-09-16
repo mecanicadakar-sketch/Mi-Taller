@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WorkOrder, Workshop, OrderStatus, Mechanic } from '../types/tallerya';
 import { searchWorkOrdersByPatente } from '../services/tallerService';
 import { resolveProximoKm } from '../services/whatsappReminderService';
@@ -23,8 +23,11 @@ import {
   Sparkles,
   Globe,
   ExternalLink,
-  Package
+  Package,
+  Download,
+  Smartphone
 } from 'lucide-react';
+import { QuickInstallGuideModal } from './QuickInstallGuideModal';
 
 interface ClientLookupModalProps {
   isOpen: boolean;
@@ -32,14 +35,79 @@ interface ClientLookupModalProps {
   localWorkOrders?: WorkOrder[];
   mechanics?: Mechanic[];
   onOpenAuxilioIA?: () => void;
+  onInstallApp?: () => void;
 }
 
-export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mechanics = [], onOpenAuxilioIA }: ClientLookupModalProps) {
+export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mechanics = [], onOpenAuxilioIA, onInstallApp }: ClientLookupModalProps) {
   const [patenteInput, setPatenteInput] = useState('');
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [results, setResults] = useState<WorkOrder[]>([]);
   const [workshops, setWorkshops] = useState<Record<string, Workshop>>({});
+  const [showInstallGuideModal, setShowInstallGuideModal] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isStandalone, setIsStandalone] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const standalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (navigator as any).standalone === true;
+      setIsStandalone(standalone);
+
+      if ((window as any).__pwaInstallPrompt) {
+        setDeferredPrompt((window as any).__pwaInstallPrompt);
+      }
+
+      const handleBeforeInstall = (e: Event) => {
+        e.preventDefault();
+        (window as any).__pwaInstallPrompt = e;
+        setDeferredPrompt(e);
+      };
+
+      window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+      return () => {
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      };
+    }
+  }, []);
+
+  const handleTriggerInstallPrompt = async (): Promise<boolean> => {
+    const promptEvent = deferredPrompt || (typeof window !== 'undefined' ? (window as any).__pwaInstallPrompt : null);
+    if (promptEvent && promptEvent.prompt) {
+      promptEvent.prompt();
+      const { outcome } = await promptEvent.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        if (typeof window !== 'undefined') {
+          (window as any).__pwaInstallPrompt = null;
+        }
+        return true;
+      }
+      return false;
+    }
+    return false;
+  };
+
+  const handleInstallClick = async () => {
+    const promptEvent = deferredPrompt || (typeof window !== 'undefined' ? (window as any).__pwaInstallPrompt : null);
+    if (promptEvent && promptEvent.prompt) {
+      try {
+        promptEvent.prompt();
+        const { outcome } = await promptEvent.userChoice;
+        if (outcome === 'accepted') {
+          setDeferredPrompt(null);
+          if (typeof window !== 'undefined') {
+            (window as any).__pwaInstallPrompt = null;
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('Install prompt error:', err);
+      }
+    }
+    setShowInstallGuideModal(true);
+  };
 
   if (!isOpen) return null;
 
@@ -101,29 +169,49 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[90vh]">
         {/* Header Banner */}
-        <div className="bg-slate-900 text-white p-5 sm:p-6 relative shrink-0 border-b border-slate-800">
+        <div className="bg-slate-900 text-white p-4 sm:p-6 relative shrink-0 border-b border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pr-10 sm:pr-12">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-amber-500 text-slate-950 rounded-xl font-bold shadow-md shrink-0">
+                <Car className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                    Consulta por Patente
+                  </h2>
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded-md border border-emerald-500/30">
+                    ONLINE
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Consulta el estado de tu auto y tu libreta de servicios ingresando la patente
+                </p>
+              </div>
+            </div>
+
+            {/* Install Quick Access Button in Header */}
+            <button
+              type="button"
+              onClick={handleInstallClick}
+              className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md shadow-amber-500/10 transition-all flex items-center justify-center gap-2 shrink-0 active:scale-95 cursor-pointer border border-amber-400/80"
+              title="Instalar acceso rápido en Celular, Tablet o PC"
+            >
+              <Download className="w-4 h-4 stroke-[2.5]" />
+              <span>Instalar Acceso Rápido</span>
+              <span className="hidden md:inline-block px-1.5 py-0.5 bg-slate-950/15 text-slate-950 rounded text-[9px] font-black uppercase">
+                Móvil / PC
+              </span>
+            </button>
+          </div>
+
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            title="Cerrar"
           >
             <X className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-amber-500 text-slate-950 rounded-xl font-bold shadow-md">
-              <Car className="w-6 h-6 stroke-[2.5]" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-white tracking-tight">Portal de Consulta para Clientes</h2>
-                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded-md border border-emerald-500/30">
-                  ONLINE
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Consulta el estado de tu auto y tu libreta de servicios ingresando la patente
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* Body Container */}
@@ -176,6 +264,35 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
               </a>
             </div>
           </form>
+
+          {/* Quick Access Card */}
+          <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/5 border border-amber-500/30 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-700 flex items-center justify-center shrink-0">
+                <Smartphone className="w-5 h-5 stroke-[2]" />
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-900 flex flex-wrap items-center gap-1.5">
+                  <span>Acceso Rápido en tu Celular, Tablet o PC</span>
+                  <span className="text-[10px] bg-amber-500 text-slate-950 font-bold px-1.5 py-0.2 rounded-full">
+                    Sin escribir la web
+                  </span>
+                </p>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  Guarda la consulta en tu pantalla de inicio para verificar el estado de tu vehículo con un solo toque.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleInstallClick}
+              className="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
+            >
+              <Download className="w-4 h-4 stroke-[2.5]" />
+              <span>Instalar en Dispositivo</span>
+            </button>
+          </div>
 
           {/* Results Area */}
           {hasSearched && !searching && (
@@ -488,19 +605,36 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
-          <span className="flex items-center gap-1">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            Sistema de Verificación Digital MiTaller
-          </span>
+        <div className="p-4 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1 font-medium">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              Sistema de Verificación Digital MiTaller
+            </span>
+            <button
+              type="button"
+              onClick={handleInstallClick}
+              className="text-amber-800 hover:text-amber-900 font-extrabold flex items-center gap-1 hover:underline cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Instalar Acceso Rápido</span>
+            </button>
+          </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-colors"
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-colors cursor-pointer"
           >
             Cerrar Portal
           </button>
         </div>
       </div>
+
+      <QuickInstallGuideModal
+        isOpen={showInstallGuideModal}
+        onClose={() => setShowInstallGuideModal(false)}
+        onTriggerInstallPrompt={handleTriggerInstallPrompt}
+        canPromptDirectly={Boolean(deferredPrompt || (typeof window !== 'undefined' && (window as any).__pwaInstallPrompt))}
+      />
     </div>
   );
 }
