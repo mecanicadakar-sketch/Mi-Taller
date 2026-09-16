@@ -39,5 +39,14 @@
       "sizes": "512x512",
       "type": "image/png"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Consulta por Patente",
+      "short_name": "Patente",
+      "description": "Consultar estado de vehículo por patente",
+      "url": "/?portal=cliente",
+      "icons": [{ "src": "/pwa-192.png", "sizes": "192x192" }]
+    }
   ]
 }

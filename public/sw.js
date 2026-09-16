@@ -1,8 +1,10 @@
-const CACHE_NAME = 'tallerya-pwa-v2';
+const CACHE_NAME = 'tallerya-pwa-v3';
 const ASSETS_TO_CACHE = [
   '/',
+  '/?portal=cliente',
   '/index.html',
   '/manifest.json',
+  '/manifest-cliente.json',
   '/pwa-192.png',
   '/pwa-512.png',
   '/apple-touch-icon.png',
