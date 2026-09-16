@@ -55,6 +55,14 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
         (navigator as any).standalone === true;
       setIsStandalone(standalone);
 
+      // If modal is open, ensure the client manifest is active for any install action
+      if (isOpen) {
+        const manifestLink = document.querySelector('link[rel="manifest"]');
+        if (manifestLink) {
+          manifestLink.setAttribute('href', '/manifest-cliente.json');
+        }
+      }
+
       if ((window as any).__pwaInstallPrompt) {
         setDeferredPrompt((window as any).__pwaInstallPrompt);
       }
@@ -68,9 +76,15 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
       window.addEventListener('beforeinstallprompt', handleBeforeInstall);
       return () => {
         window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+        if (isOpen) {
+          const manifestLink = document.querySelector('link[rel="manifest"]');
+          if (manifestLink) {
+            manifestLink.setAttribute('href', '/manifest.json');
+          }
+        }
       };
     }
-  }, []);
+  }, [isOpen]);
 
   const handleTriggerInstallPrompt = async (): Promise<boolean> => {
     const promptEvent = deferredPrompt || (typeof window !== 'undefined' ? (window as any).__pwaInstallPrompt : null);
@@ -634,6 +648,8 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
         onClose={() => setShowInstallGuideModal(false)}
         onTriggerInstallPrompt={handleTriggerInstallPrompt}
         canPromptDirectly={Boolean(deferredPrompt || (typeof window !== 'undefined' && (window as any).__pwaInstallPrompt))}
+        customUrl={typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}?portal=cliente` : 'https://mitallerpy.vercel.app/?portal=cliente'}
+        portalOnly={true}
       />
     </div>
   );

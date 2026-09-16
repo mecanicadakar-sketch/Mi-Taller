@@ -57,6 +57,13 @@ export function ClientPortalView({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Ensure client portal manifest is active
+      const manifestLink = document.querySelector('link[rel="manifest"]');
+      if (manifestLink) {
+        manifestLink.setAttribute('href', '/manifest-cliente.json');
+      }
+      document.title = 'Consulta por Patente - MiTaller';
+
       if ((window as any).__pwaInstallPrompt) {
         setDeferredPrompt((window as any).__pwaInstallPrompt);
       }
@@ -641,6 +648,8 @@ export function ClientPortalView({
         onClose={() => setShowInstallGuideModal(false)}
         onTriggerInstallPrompt={handleTriggerInstallPrompt}
         canPromptDirectly={Boolean(deferredPrompt || (typeof window !== 'undefined' && (window as any).__pwaInstallPrompt))}
+        customUrl={typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}?portal=cliente` : 'https://mitallerpy.vercel.app/?portal=cliente'}
+        portalOnly={true}
       />
     </div>
   );

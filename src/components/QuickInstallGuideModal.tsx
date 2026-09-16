@@ -20,6 +20,8 @@ interface QuickInstallGuideModalProps {
   onClose: () => void;
   onTriggerInstallPrompt?: () => Promise<boolean>;
   canPromptDirectly?: boolean;
+  customUrl?: string;
+  portalOnly?: boolean;
 }
 
 export function QuickInstallGuideModal({
@@ -27,6 +29,8 @@ export function QuickInstallGuideModal({
   onClose,
   onTriggerInstallPrompt,
   canPromptDirectly = false,
+  customUrl,
+  portalOnly = true,
 }: QuickInstallGuideModalProps) {
   const [activeTab, setActiveTab] = useState<'mobile' | 'ios' | 'pc'>('mobile');
   const [copiedLink, setCopiedLink] = useState(false);
@@ -48,11 +52,13 @@ export function QuickInstallGuideModal({
 
   if (!isOpen) return null;
 
-  const currentUrl = typeof window !== 'undefined' ? window.location.href : 'https://mitallerpy.vercel.app';
+  const clientPortalUrl = typeof window !== 'undefined'
+    ? (customUrl || `${window.location.origin}${window.location.pathname}?portal=cliente`)
+    : 'https://mitallerpy.vercel.app/?portal=cliente';
 
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(currentUrl);
+      await navigator.clipboard.writeText(clientPortalUrl);
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 3000);
     } catch {
@@ -77,7 +83,7 @@ export function QuickInstallGuideModal({
 
   const shareViaWhatsApp = () => {
     const text = encodeURIComponent(
-      `Acceso rápido a Consulta por Patente de MiTaller:\n${currentUrl}\n\nÁbrelo desde tu celular o tablet e instálalo en tu pantalla de inicio.`
+      `Acceso directo al Portal de Consulta por Patente de MiTaller:\n${clientPortalUrl}\n\nIngresa desde aquí para ver el estado de tu vehículo y services.`
     );
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
@@ -229,7 +235,7 @@ export function QuickInstallGuideModal({
                     <div>
                       <strong className="text-white block">Confirma &quot;Instalar&quot;</strong>
                       <p className="text-slate-400 text-[11px] mt-0.5">
-                        El ícono oficial de <strong>MiTaller</strong> se creará en tu pantalla de inicio junto a tus demás aplicaciones y abrirá instantáneamente en pantalla completa.
+                        El ícono oficial de <strong>Consulta por Patente</strong> se creará en tu pantalla de inicio y abrirá exclusivamente el portal de búsqueda sin acceso a la administración del taller.
                       </p>
                     </div>
                   </div>
