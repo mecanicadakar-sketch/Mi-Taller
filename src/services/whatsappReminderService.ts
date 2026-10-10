@@ -1,26 +1,42 @@
 import { WorkOrder, Client, Vehicle } from '../types/tallerya';
-import { parseAndNormalizeDate } from '../utils/dateUtils';
+import { parseAndNormalizeDate, formatDateSpanish } from '../utils/dateUtils';
+
+export type MaintenanceCategory = 'motor' | 'caja' | 'distribucion' | 'general';
 
 export interface MaintenanceReminderItem {
   clientId: string;
   clientNombre: string;
   clientTelefono: string;
   vehiculo: Vehicle;
-  ultimoServiceKm: number;
-  ultimoServiceFecha: string;
-  proximoKmService: number;
-  kmActuales: number;
-  diferenciaKm: number; // e.g. -500 (pasado por 500km), +200 (le faltan 200km)
-  diasDesdeUltimoService: number;
-  intervaloKm: number;
-  maxMesesService: number;
-  maxDiasService: number;
+  // Service date details (requested by user)
+  ultimoServiceFecha: string; // ISO date of when service was performed
+  ultimoServiceFechaFormateada: string; // e.g. 13/05/2026
+  ultimoServiceKm: number; // Km in workshop when service was performed
+  proximoKmService: number; // Target sticker km
+  kmActuales: number; // Highest recorded km in workshop
+  diferenciaKm: number; // Reference only
+  // Time and months calculation (core user requirement)
+  categoriaMantenimiento: MaintenanceCategory;
+  tipoServicioEtiqueta: string; // e.g. "Mantenimiento de Motor (5.000 km / 6 meses)" o "Mantenimiento de Caja (24 meses)"
+  intervaloMeses: number; // 6 para 5k motor, 12 para 10k motor, 24 para caja
+  intervaloKm: number; // 5000, 10000, 50000, etc.
+  fechaVencimiento: string; // ISO date of expiration
+  fechaVencimientoFormateada: string; // e.g. 13/11/2026
+  diasDesdeUltimoService: number; // Days elapsed since service
+  mesesDesdeUltimoService: number; // Months elapsed since service
+  diasRestantesParaVencer: number; // >0: days until due, <=0: overdue
+  mesesRestantesParaVencer: number; // Approximate months remaining/overdue
+  maxMesesService?: number; // Backward compatibility
+  maxDiasService?: number; // Backward compatibility
   estadoRecordatorio: 'overdue' | 'due_soon' | 'upcoming';
+  esMantenimientoCaja: boolean;
+  esMantenimientoMotor: boolean;
+  // Work order tracking
   ordenTrabajoId?: string;
   notasService?: string;
   ultimoAviso?: string; // Fecha ISO o texto del último aviso enviado
   diasDesdeUltimoAviso?: number; // Días transcurridos desde el último aviso registrado
-  notificadoRecientemente?: boolean; // True si ya fue notificado hace pocos días (ej. < 7 días) para evitar duplicados
+  notificadoRecientemente?: boolean; // True si ya fue notificado hace pocos días
 }
 
 export interface CalculateRemindersOptions {
@@ -120,11 +136,48 @@ export function formatWhatsAppPhone(phone: string): string {
 }
 
 /**
+ * Checks if a work order involves gearbox / transmission maintenance.
+ */
+export function isGearboxService(wo: Partial<WorkOrder>): boolean {
+  if (wo.mantenimiento?.aceiteCajaAutomatica || wo.mantenimiento?.filtroCajaATF) {
+    return true;
+  }
+  const corpus = [
+    wo.fallaReportada || '',
+    wo.diagnosticoTecnico || '',
+    wo.mantenimiento?.notasService || '',
+    ...(wo.servicios || []).map((s) => s.descripcion || ''),
+  ]
+    .join(' ')
+    .toLowerCase();
+
+  return (
+    corpus.includes('caja automatica') ||
+    corpus.includes('caja automática') ||
+    corpus.includes('caja de cambios') ||
+    corpus.includes('caja mecanica') ||
+    corpus.includes('caja mecánica') ||
+    corpus.includes('aceite de caja') ||
+    corpus.includes('fluido de caja') ||
+    corpus.includes('filtro atf') ||
+    corpus.includes('filtro caja') ||
+    corpus.includes('transmision') ||
+    corpus.includes('transmisión') ||
+    corpus.includes('atf')
+  );
+}
+
+/**
  * Automatically extracts or resolves the maintenance interval in KM for a work order.
  * Accurately detects and distinguishes 5,000 km (mineral), 7,000 km (semisynthetic),
  * 10,000 km (synthetic), 20,000 km, 50,000 km (ATF), 100,000 km (distribución).
  */
 export function detectServiceInterval(wo: Partial<WorkOrder>): number {
+  const isCaja = isGearboxService(wo);
+  if (isCaja && !wo.mantenimiento?.aceiteMotor && !wo.mantenimiento?.filtroAceite) {
+    return 50000;
+  }
+
   // 1. Direct explicit interval in mantenimiento (if specifically chosen)
   const rawInterval = wo.mantenimiento?.intervaloKm;
   if (typeof rawInterval === 'number' && rawInterval > 0) {
@@ -181,15 +234,7 @@ export function detectServiceInterval(wo: Partial<WorkOrder>): number {
   }
 
   // Check for 50.000 km (ATF / Automatic gearbox)
-  if (
-    corpus.includes('50.000') ||
-    corpus.includes('50000') ||
-    corpus.includes('caja automatica') ||
-    corpus.includes('caja automática') ||
-    corpus.includes('atf') ||
-    wo.mantenimiento?.filtroCajaATF ||
-    wo.mantenimiento?.aceiteCajaAutomatica
-  ) {
+  if (isCaja) {
     return 50000;
   }
 
@@ -222,6 +267,42 @@ export function detectServiceInterval(wo: Partial<WorkOrder>): number {
 
   // Default standard interval
   return 10000;
+}
+
+/**
+ * Calculates the exact duration in months according to the service type & user rules:
+ * - Mantenimiento de Motor 5.000 km -> 6 meses
+ * - Mantenimiento de Motor 7.000 km -> 8 meses
+ * - Mantenimiento de Motor 10.000 km -> 12 meses
+ * - Mantenimiento de Caja (Aceite / Filtro ATF / Transmisión) -> 24 meses (a partir de la fecha realizada)
+ * - Distribución -> 36 meses
+ */
+export function getMonthsForService(intervaloKm = 10000, isCaja = false): number {
+  if (isCaja) {
+    return 24; // Caja de cambios: 24 meses
+  }
+  const sanitizedKm = (intervaloKm > 0 && intervaloKm <= 50) ? intervaloKm * 1000 : (intervaloKm || 10000);
+  if (sanitizedKm <= 5000) return 6; // 5.000 km -> 6 meses
+  if (sanitizedKm <= 7000) return 8; // 7.000 km -> 8 meses
+  if (sanitizedKm <= 10000) return 12; // 10.000 km -> 12 meses
+  if (sanitizedKm <= 30000) return 12; // 12 meses
+  if (sanitizedKm <= 50000) return 24; // 50.000 km (caja/atf) -> 24 meses
+  return 36; // 100.000 km -> 36 meses
+}
+
+/**
+ * Calculates the exact expiration date by adding months to the service date.
+ */
+export function calculateExpirationDate(fechaRealizadaStr: string, meses: number): Date {
+  const parsedIso = parseAndNormalizeDate(fechaRealizadaStr);
+  const base = new Date(parsedIso);
+  if (isNaN(base.getTime())) {
+    const fallback = new Date();
+    fallback.setMonth(fallback.getMonth() + meses);
+    return fallback;
+  }
+  const target = new Date(base.getFullYear(), base.getMonth() + meses, base.getDate(), 12, 0, 0);
+  return target;
 }
 
 /**
@@ -298,52 +379,50 @@ export function resolveProximoKm(
 /**
  * Calculates the time limits in days and months based on service interval in km.
  * Rules requested by user:
- * - 5,000 km -> 6 meses (180 días max, avisa desde 150 días) - Aceite
- * - 7,000 km -> 8 meses (240 días max, avisa desde 210 días) - Aceite Semisintético
- * - 10,000 km -> 12 meses (365 días max, avisa desde 335 días) - Aceite Estándar
- * - 30,000 km -> 12 meses (365 días max, avisa desde 335 días) - Mantenimiento de Inyección
- * - 50,000 km -> 24 meses (730 días max, avisa desde 700 días) - Caja Automática (ATF)
- * - 100,000 km -> 36 meses (1095 días max, avisa desde 1065 días) - Distribución
+ * - 5,000 km -> 6 meses
+ * - 7,000 km -> 8 meses
+ * - 10,000 km -> 12 meses
+ * - 50,000 km / Caja -> 24 meses
+ * - 100,000 km -> 36 meses
  */
 export function getTimeLimitsForInterval(intervaloKm = 10000): { maxDays: number; dueSoonDays: number; maxMonths: number } {
-  const sanitizedKm = (intervaloKm > 0 && intervaloKm <= 50) ? intervaloKm * 1000 : (intervaloKm || 10000);
-  if (sanitizedKm <= 5000) {
-    return { maxDays: 180, dueSoonDays: 150, maxMonths: 6 };
-  }
-  if (sanitizedKm <= 7000) {
-    return { maxDays: 240, dueSoonDays: 210, maxMonths: 8 };
-  }
-  if (sanitizedKm <= 10000) {
-    return { maxDays: 365, dueSoonDays: 335, maxMonths: 12 };
-  }
-  if (sanitizedKm <= 30000) {
-    return { maxDays: 365, dueSoonDays: 335, maxMonths: 12 };
-  }
-  if (sanitizedKm <= 50000) {
-    return { maxDays: 730, dueSoonDays: 700, maxMonths: 24 };
-  }
-  // 100,000 km or more
-  return { maxDays: 1095, dueSoonDays: 1065, maxMonths: 36 };
+  const months = getMonthsForService(intervaloKm, false);
+  const maxDays = months * 30;
+  const dueSoonDays = Math.max(0, maxDays - 30);
+  return { maxDays, dueSoonDays, maxMonths: months };
 }
 
 /**
  * Calculates maintenance reminders from WorkOrders & Clients.
- * Accurately verifies mileage intervals (5,000 km vs 10,000 km) and tracks
- * 'ultimoAviso' on work orders to prevent duplicate notifications.
+ *
+ * CRITICAL RULE REQUESTED BY USER:
+ * Does NOT calculate expiration by kilometers because the workshop cannot know
+ * real-life customer mileage once the car leaves.
+ *
+ * Instead:
+ * - Clearly tracks the date the maintenance was performed (fecha del día que se realizó el mantenimiento).
+ * - Calculates expiration by MONTHS from that date:
+ *   - Motor 5.000 km -> 6 meses
+ *   - Motor 10.000 km -> 12 meses
+ *   - Caja de cambios (ATF/transmisión) -> 24 meses (a partir de la fecha realizada)
+ * - Sets status:
+ *   - 'overdue' (Vencido): when the expiration date has passed (días restantes <= 0)
+ *   - 'due_soon' (Próximo a Vencer): within 30 days of reaching expiration
+ *   - 'upcoming' (Al Día): more than 30 days remaining
  */
 export function calculateReminders(
   workOrders: WorkOrder[],
   clients: Client[],
-  thresholdKm = 1000, // Remind when within thresholdKm
+  _thresholdKmIgnored = 1000,
   options?: CalculateRemindersOptions
 ): MaintenanceReminderItem[] {
   const reminders: MaintenanceReminderItem[] = [];
-  const processedVehicleKeys = new Set<string>();
+  const processedVehicleServiceKeys = new Set<string>();
 
   // Helper to extract timestamp for sorting orders newest-first
   const getOrderTimestamp = (wo: WorkOrder): number => {
     if (wo.fechaIngreso) {
-      const t = new Date(wo.fechaIngreso).getTime();
+      const t = new Date(parseAndNormalizeDate(wo.fechaIngreso)).getTime();
       if (!isNaN(t)) return t;
     }
     if (wo.id && wo.id.startsWith('wo_')) {
@@ -381,16 +460,19 @@ export function calculateReminders(
     }
   });
 
-  // Process work orders (newest order first per vehicle)
-  sortedWorkOrders.forEach((wo) => {
-    const patente = wo.vehiculo?.patente?.trim().toUpperCase() || '';
-    const vehicleKey = patente && patente !== 'S/P'
-      ? patente
-      : `${(wo.clienteNombre || '').toLowerCase().trim()}_${(wo.vehiculo?.marca || '').toLowerCase().trim()}_${(wo.vehiculo?.modelo || '').toLowerCase().trim()}`;
+  // Reference date (today at midnight)
+  const hoy = new Date();
+  const todayZero = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime();
 
-    if (processedVehicleKeys.has(vehicleKey)) return;
-
-    // Extract 'ultimo aviso' timestamp to prevent duplicate notifications
+  // Helper to build a reminder item
+  const buildReminder = (
+    wo: WorkOrder,
+    category: MaintenanceCategory,
+    isCaja: boolean,
+    intervalKm: number,
+    intervalMonths: number,
+    label: string
+  ): MaintenanceReminderItem => {
     const ultimoAvisoStr = wo.ultimoAviso || wo.ultimoAvisoWhatsApp;
     let diasDesdeUltimoAviso: number | undefined = undefined;
     let notificadoRecientemente = false;
@@ -399,7 +481,6 @@ export function calculateReminders(
       const parsedAvisoIso = parseAndNormalizeDate(ultimoAvisoStr);
       const avisoDate = new Date(parsedAvisoIso);
       if (!isNaN(avisoDate.getTime())) {
-        const hoy = new Date();
         const diffMs = hoy.getTime() - avisoDate.getTime();
         diasDesdeUltimoAviso = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
         const minDias = options?.minDiasEntreAvisos ?? 7;
@@ -407,134 +488,213 @@ export function calculateReminders(
       }
     }
 
-    // If caller specifically requested to omit recently notified orders, skip
-    if (options?.soloSinAvisoReciente && notificadoRecientemente) {
-      return;
-    }
-
-    // Mileage at the time of THIS specific work order / service
     const ultimoKm = wo.vehiculo?.kilometraje || 0;
-    // Highest known current mileage for this vehicle across all records
-    const kmActuales = Math.max(vehicleMaxKm.get(patente) || 0, ultimoKm);
-
-    // 1. Detect maintenance interval accurately (5.000, 7.000, 10.000, etc.)
-    const intervalo = detectServiceInterval(wo);
-    const { maxDays, dueSoonDays, maxMonths } = getTimeLimitsForInterval(intervalo);
-
+    const kmActuales = Math.max(vehicleMaxKm.get((wo.vehiculo?.patente || '').trim().toUpperCase()) || 0, ultimoKm);
     const rawProximo = wo.mantenimiento?.proximoKmService;
+    const proximoKm = resolveProximoKm(ultimoKm, kmActuales, rawProximo, intervalKm);
 
-    // 2. Resolve target next service KM without artificially advancing it when reached
-    const proximoKm = resolveProximoKm(ultimoKm, kmActuales, rawProximo, intervalo);
+    // Service Date (fecha del día que se realizó el mantenimiento)
+    const fechaIngresoIso = parseAndNormalizeDate(wo.fechaIngreso);
+    const fechaIngresoDate = new Date(fechaIngresoIso);
+    const fechaIngresoZero = new Date(
+      fechaIngresoDate.getFullYear(),
+      fechaIngresoDate.getMonth(),
+      fechaIngresoDate.getDate()
+    ).getTime();
 
-    if (proximoKm <= 0 && kmActuales <= 0) return;
+    const diffMs = todayZero - fechaIngresoZero;
+    const diasDesdeUltimoService = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    const mesesDesdeUltimoService = Math.floor(diasDesdeUltimoService / 30);
 
-    // 3. Difference: positive = remaining km, zero = exactly reached, negative = overdue/exceeded
-    const diferenciaKm = proximoKm - kmActuales;
-    
-    // Calculate days since this service accurately
-    let diasDesdeUltimo = 0;
-    if (wo.fechaIngreso) {
-      const parsedIso = parseAndNormalizeDate(wo.fechaIngreso);
-      const fechaIngresoDate = new Date(parsedIso);
-      if (!isNaN(fechaIngresoDate.getTime())) {
-        const hoy = new Date();
-        const todayZero = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime();
-        const ingresoZero = new Date(fechaIngresoDate.getFullYear(), fechaIngresoDate.getMonth(), fechaIngresoDate.getDate()).getTime();
-        const diffMs = todayZero - ingresoZero;
-        diasDesdeUltimo = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-      }
-    }
+    // Target expiration date calculated by MONTHS from service date
+    const expirationDate = calculateExpirationDate(fechaIngresoIso, intervalMonths);
+    const expirationZero = new Date(
+      expirationDate.getFullYear(),
+      expirationDate.getMonth(),
+      expirationDate.getDate()
+    ).getTime();
 
-    // 4. Determine reminder status:
-    // When thresholdKm is 999999 (used in UI to view all reminders), we use a standard threshold
-    // proportional to the service interval: e.g. 1.000 km for 5.000 km services, 1.500 km for 10.000 km services.
-    const effectiveKmThreshold = thresholdKm < 999999
-      ? thresholdKm
-      : (intervalo <= 5000 ? 1000 : 1500);
+    // Days remaining until expiration (negative means overdue)
+    const diffExpirationMs = expirationZero - todayZero;
+    const diasRestantesParaVencer = Math.round(diffExpirationMs / (1000 * 60 * 60 * 24));
+    const mesesRestantesParaVencer = Math.round(diasRestantesParaVencer / 30);
 
+    // Determine status based strictly on expiration date
     let estadoRecordatorio: 'overdue' | 'due_soon' | 'upcoming' = 'upcoming';
-
-    if (diferenciaKm <= 0 || (diasDesdeUltimo > 0 && diasDesdeUltimo >= maxDays)) {
-      estadoRecordatorio = 'overdue';
-    } else if (diferenciaKm <= effectiveKmThreshold || (diasDesdeUltimo > 0 && diasDesdeUltimo >= dueSoonDays)) {
-      estadoRecordatorio = 'due_soon';
+    if (diasRestantesParaVencer <= 0) {
+      estadoRecordatorio = 'overdue'; // Plazo vencido
+    } else if (diasRestantesParaVencer <= 30) {
+      estadoRecordatorio = 'due_soon'; // Vence en los próximos 30 días
     } else {
-      estadoRecordatorio = 'upcoming';
+      estadoRecordatorio = 'upcoming'; // Al día
     }
 
-    processedVehicleKeys.add(vehicleKey);
-    reminders.push({
+    return {
       clientId: wo.clienteId,
       clientNombre: wo.clienteNombre || 'Cliente',
       clientTelefono: wo.clienteTelefono || '',
       vehiculo: wo.vehiculo,
+      ultimoServiceFecha: fechaIngresoIso,
+      ultimoServiceFechaFormateada: formatDateSpanish(fechaIngresoIso),
       ultimoServiceKm: ultimoKm,
-      ultimoServiceFecha: wo.fechaIngreso,
       proximoKmService: proximoKm,
       kmActuales,
-      diferenciaKm,
-      diasDesdeUltimoService: diasDesdeUltimo,
-      intervaloKm: intervalo,
-      maxMesesService: maxMonths,
-      maxDiasService: maxDays,
+      diferenciaKm: proximoKm - kmActuales,
+      categoriaMantenimiento: category,
+      tipoServicioEtiqueta: label,
+      intervaloMeses: intervalMonths,
+      intervaloKm: intervalKm,
+      fechaVencimiento: expirationDate.toISOString(),
+      fechaVencimientoFormateada: formatDateSpanish(expirationDate.toISOString()),
+      diasDesdeUltimoService,
+      mesesDesdeUltimoService,
+      diasRestantesParaVencer,
+      mesesRestantesParaVencer,
+      maxMesesService: intervalMonths,
+      maxDiasService: intervalMonths * 30,
       estadoRecordatorio,
+      esMantenimientoCaja: isCaja,
+      esMantenimientoMotor: !isCaja,
       ordenTrabajoId: wo.id,
       notasService: wo.mantenimiento?.notasService || wo.fallaReportada,
       ultimoAviso: ultimoAvisoStr,
       diasDesdeUltimoAviso,
       notificadoRecientemente,
-    });
+    };
+  };
+
+  // Process work orders
+  sortedWorkOrders.forEach((wo) => {
+    const patente = wo.vehiculo?.patente?.trim().toUpperCase() || '';
+    const baseVehicleKey = patente && patente !== 'S/P'
+      ? patente
+      : `${(wo.clienteNombre || '').toLowerCase().trim()}_${(wo.vehiculo?.marca || '').toLowerCase().trim()}_${(wo.vehiculo?.modelo || '').toLowerCase().trim()}`;
+
+    const isCaja = isGearboxService(wo);
+    const intervalKm = detectServiceInterval(wo);
+
+    // 1. If order has Caja maintenance (avisar a los 24 meses)
+    if (isCaja) {
+      const cajaKey = `${baseVehicleKey}_caja`;
+      if (!processedVehicleServiceKeys.has(cajaKey)) {
+        processedVehicleServiceKeys.add(cajaKey);
+        const item = buildReminder(
+          wo,
+          'caja',
+          true,
+          50000,
+          24, // Caja: 24 meses
+          'Mantenimiento de Caja (24 meses)'
+        );
+        if (!options?.soloSinAvisoReciente || !item.notificadoRecientemente) {
+          reminders.push(item);
+        }
+      }
+    }
+
+    // 2. Motor maintenance check (5k -> 6 meses, 10k -> 12 meses)
+    const motorKey = `${baseVehicleKey}_motor`;
+    if (!processedVehicleServiceKeys.has(motorKey)) {
+      let motorMonths = 12;
+      let motorLabel = 'Mantenimiento de Motor (10.000 km / 12 meses)';
+      let motorKm = intervalKm;
+
+      if (intervalKm <= 5000) {
+        motorMonths = 6;
+        motorLabel = 'Mantenimiento de Motor (5.000 km / 6 meses)';
+        motorKm = 5000;
+      } else if (intervalKm === 7000) {
+        motorMonths = 8;
+        motorLabel = 'Mantenimiento de Motor (7.000 km / 8 meses)';
+        motorKm = 7000;
+      } else if (intervalKm === 100000) {
+        motorMonths = 36;
+        motorLabel = 'Correa de Distribución (100.000 km / 36 meses)';
+        motorKm = 100000;
+      }
+
+      processedVehicleServiceKeys.add(motorKey);
+      const item = buildReminder(
+        wo,
+        intervalKm === 100000 ? 'distribucion' : 'motor',
+        false,
+        motorKm,
+        motorMonths,
+        motorLabel
+      );
+      if (!options?.soloSinAvisoReciente || !item.notificadoRecientemente) {
+        reminders.push(item);
+      }
+    }
   });
 
-  // Also scan Clients with vehicles not covered in work orders (check against 5,000 km intervals)
+  // Also include vehicles registered in client records without orders
   clients.forEach((c) => {
     c.vehiculos.forEach((v) => {
       const patente = v.patente?.trim().toUpperCase() || '';
-      const vehicleKey = patente && patente !== 'S/P' ? patente : `${(c.nombre || '').toLowerCase().trim()}_${(v.marca || '').toLowerCase().trim()}_${(v.modelo || '').toLowerCase().trim()}`;
+      const baseVehicleKey = patente && patente !== 'S/P'
+        ? patente
+        : `${(c.nombre || '').toLowerCase().trim()}_${(v.marca || '').toLowerCase().trim()}_${(v.modelo || '').toLowerCase().trim()}`;
 
-      if (processedVehicleKeys.has(vehicleKey)) return;
+      const motorKey = `${baseVehicleKey}_motor`;
+      if (processedVehicleServiceKeys.has(motorKey)) return;
 
       const kmActuales = v.kilometraje || 0;
       if (kmActuales > 0) {
-        // Standard check using 5,000 km intervals (so 5k oil changes are properly alerted)
-        const interval = 5000;
-        const nextTarget = Math.ceil((kmActuales + 1) / interval) * interval;
-        const diff = nextTarget - kmActuales;
-        const { maxDays, maxMonths } = getTimeLimitsForInterval(interval);
+        processedVehicleServiceKeys.add(motorKey);
+        // Default standard 6 months for 5.000 km
+        const intervalKm = 5000;
+        const intervalMonths = 6;
+        const expirationDate = new Date();
+        expirationDate.setMonth(expirationDate.getMonth() + intervalMonths);
 
-        if (diff <= thresholdKm && diff > 0) {
-          processedVehicleKeys.add(vehicleKey);
-          reminders.push({
-            clientId: c.id,
-            clientNombre: c.nombre,
-            clientTelefono: c.telefono,
-            vehiculo: v,
-            ultimoServiceKm: Math.max(0, kmActuales - (interval - diff)),
-            ultimoServiceFecha: '',
-            proximoKmService: nextTarget,
-            kmActuales,
-            diferenciaKm: diff,
-            diasDesdeUltimoService: 0,
-            intervaloKm: interval,
-            maxMesesService: maxMonths,
-            maxDiasService: maxDays,
-            estadoRecordatorio: diff <= 500 ? 'due_soon' : 'upcoming',
-          });
-        }
+        reminders.push({
+          clientId: c.id,
+          clientNombre: c.nombre,
+          clientTelefono: c.telefono,
+          vehiculo: v,
+          ultimoServiceFecha: '',
+          ultimoServiceFechaFormateada: 'Registro inicial',
+          ultimoServiceKm: kmActuales,
+          proximoKmService: kmActuales + intervalKm,
+          kmActuales,
+          diferenciaKm: intervalKm,
+          categoriaMantenimiento: 'motor',
+          tipoServicioEtiqueta: 'Mantenimiento de Motor (5.000 km / 6 meses)',
+          intervaloMeses: intervalMonths,
+          intervaloKm: intervalKm,
+          fechaVencimiento: expirationDate.toISOString(),
+          fechaVencimientoFormateada: formatDateSpanish(expirationDate.toISOString()),
+          diasDesdeUltimoService: 0,
+          mesesDesdeUltimoService: 0,
+          diasRestantesParaVencer: intervalMonths * 30,
+          mesesRestantesParaVencer: intervalMonths,
+          maxMesesService: intervalMonths,
+          maxDiasService: intervalMonths * 30,
+          estadoRecordatorio: 'upcoming',
+          esMantenimientoCaja: false,
+          esMantenimientoMotor: true,
+        });
       }
     });
   });
 
-  // Sort by urgency: overdue first, then nearest service
+  // Sort by urgency:
+  // 1. Overdue first (ordered by most overdue days)
+  // 2. Due soon (ordered by nearest expiration)
+  // 3. Upcoming
   return reminders.sort((a, b) => {
     if (a.estadoRecordatorio === 'overdue' && b.estadoRecordatorio !== 'overdue') return -1;
     if (a.estadoRecordatorio !== 'overdue' && b.estadoRecordatorio === 'overdue') return 1;
-    return a.diferenciaKm - b.diferenciaKm;
+    if (a.estadoRecordatorio === 'due_soon' && b.estadoRecordatorio === 'upcoming') return -1;
+    if (a.estadoRecordatorio === 'upcoming' && b.estadoRecordatorio === 'due_soon') return 1;
+    return a.diasRestantesParaVencer - b.diasRestantesParaVencer;
   });
 }
 
 /**
- * Builds standard Spanish WhatsApp message text
+ * Builds standard Spanish WhatsApp message text with the exact service date
+ * and expiration calculated by months.
  */
 export function buildWhatsAppMessage(
   reminder: MaintenanceReminderItem,
@@ -542,20 +702,60 @@ export function buildWhatsAppMessage(
   customNote?: string
 ): string {
   const vehiculoDesc = `${reminder.vehiculo.marca} ${reminder.vehiculo.modelo} ${reminder.vehiculo.patente ? `(${reminder.vehiculo.patente})` : ''}`.trim();
-
-  let kmInfo = '';
-  if (reminder.diferenciaKm === 0) {
-    kmInfo = `ha alcanzado exactamente su kilometraje programado de mantenimiento (${reminder.proximoKmService.toLocaleString('es-PY')} km).`;
-  } else if (reminder.diferenciaKm < 0) {
-    kmInfo = `ha superado por ${Math.abs(reminder.diferenciaKm).toLocaleString('es-PY')} km su mantenimiento programado de ${reminder.proximoKmService.toLocaleString('es-PY')} km (Kilometraje actual: ${reminder.kmActuales.toLocaleString('es-PY')} km).`;
-  } else {
-    kmInfo = `se encuentra a solo ${reminder.diferenciaKm.toLocaleString('es-PY')} km de cumplir su próximo mantenimiento de ${reminder.proximoKmService.toLocaleString('es-PY')} km (Kilometraje actual: ${reminder.kmActuales.toLocaleString('es-PY')} km).`;
-  }
+  const fechaRealizada = reminder.ultimoServiceFechaFormateada;
+  const fechaVence = reminder.fechaVencimientoFormateada;
+  const kmInicial = reminder.ultimoServiceKm > 0 ? `${reminder.ultimoServiceKm.toLocaleString('es-PY')} km` : null;
+  const kmProximo = (reminder.proximoKmService || (reminder.ultimoServiceKm > 0 ? reminder.ultimoServiceKm + reminder.intervaloKm : 0));
+  const kmProximoStr = kmProximo > 0 ? `${kmProximo.toLocaleString('es-PY')} km` : null;
 
   let text = `👋 Hola *${reminder.clientNombre}*, le saludamos de *${tallerNombre}*.\n\n`;
-  text += `🚗 Le recordamos que su vehículo *${vehiculoDesc}* ${kmInfo}\n\n`;
-  text += `💡 *Mantenimiento recomendado:* Cambio de aceite de motor (${reminder.intervaloKm?.toLocaleString('es-PY') || '5.000'} km), filtros y revisión preventiva general para garantizar el óptimo funcionamiento y vida útil de su motor.\n\n`;
-  
+
+  if (reminder.esMantenimientoCaja) {
+    text += `🚗 Le informamos sobre el mantenimiento de *caja de cambios* de su vehículo *${vehiculoDesc}*.\n`;
+    text += `📅 *Fecha Realizada:* ${fechaRealizada}\n`;
+    if (kmInicial) {
+      text += `📍 *Km Inicial:* ${kmInicial}\n`;
+    }
+    if (kmProximoStr) {
+      text += `🎯 *Próximo Km:* ${kmProximoStr} (+${reminder.intervaloKm.toLocaleString('es-PY')} km)\n`;
+    }
+    text += `\n⚙️ *Mantenimiento de Caja de Cambios (Plazo: 24 meses):*\n`;
+
+    if (reminder.diasRestantesParaVencer <= 0) {
+      const diasVencido = Math.abs(reminder.diasRestantesParaVencer);
+      const mesesVencido = Math.max(1, Math.floor(diasVencido / 30));
+      text += `⚠️ *Atención:* El plazo de 24 meses *venció el ${fechaVence}* (hace ${diasVencido} días / aprox. ${mesesVencido} meses).\n`;
+    } else if (reminder.diasRestantesParaVencer <= 30) {
+      text += `⏳ Su próximo mantenimiento de caja *vence el ${fechaVence}* (en los próximos ${reminder.diasRestantesParaVencer} días).\n`;
+    } else {
+      text += `📅 Su próximo mantenimiento de caja está programado para el *${fechaVence}* (a los 24 meses).\n`;
+    }
+
+    text += `\n💡 La revisión y cambio preventivo de fluido/filtro de caja cada 24 meses es esencial para evitar desgastes de discos, sobrecalentamiento y reparaciones costosas de transmisión.\n\n`;
+  } else {
+    text += `🚗 Le recordamos los datos del servicio de mantenimiento de su vehículo *${vehiculoDesc}*.\n`;
+    text += `📅 *Fecha Realizada:* ${fechaRealizada}\n`;
+    if (kmInicial) {
+      text += `📍 *Km Inicial:* ${kmInicial}\n`;
+    }
+    if (kmProximoStr) {
+      text += `🎯 *Próximo Km:* ${kmProximoStr} (+${reminder.intervaloKm.toLocaleString('es-PY')} km)\n`;
+    }
+    text += `\n🛠️ *${reminder.tipoServicioEtiqueta}:*\n`;
+
+    if (reminder.diasRestantesParaVencer <= 0) {
+      const diasVencido = Math.abs(reminder.diasRestantesParaVencer);
+      const mesesVencido = Math.max(1, Math.floor(diasVencido / 30));
+      text += `⚠️ *Atención:* El período de ${reminder.intervaloMeses} meses *venció el ${fechaVence}* (hace ${diasVencido} días / aprox. ${mesesVencido} meses).\n`;
+    } else if (reminder.diasRestantesParaVencer <= 30) {
+      text += `⏳ Su próximo cambio de aceite y filtros *vence el ${fechaVence}* (en los próximos ${reminder.diasRestantesParaVencer} días).\n`;
+    } else {
+      text += `📅 Su próximo cambio de aceite y filtros está programado para el *${fechaVence}* (a los ${reminder.intervaloMeses} meses).\n`;
+    }
+
+    text += `\n💡 El cambio periódico de aceite y filtros por tiempo (meses) previene la degradación por condensación y oxidación, protegiendo la compresión y vida útil del motor.\n\n`;
+  }
+
   if (customNote) {
     text += `📝 *Nota adicional:* ${customNote}\n\n`;
   }
@@ -571,10 +771,13 @@ export function buildWhatsAppMessage(
 export function getWhatsAppWebLink(
   reminder: MaintenanceReminderItem,
   tallerNombre = 'MiTaller Mecánico',
-  customNote?: string
+  customNote?: string,
+  customMessageText?: string
 ): string {
   const phone = formatWhatsAppPhone(reminder.clientTelefono);
-  const message = buildWhatsAppMessage(reminder, tallerNombre, customNote);
+  const message = (customMessageText !== undefined && customMessageText.trim() !== '')
+    ? customMessageText
+    : buildWhatsAppMessage(reminder, tallerNombre, customNote);
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
