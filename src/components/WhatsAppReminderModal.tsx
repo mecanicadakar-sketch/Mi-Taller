@@ -555,7 +555,7 @@ export function WhatsAppReminderModal({
                           <span className="flex items-center gap-1.5 bg-emerald-950/50 px-2 py-1 rounded-lg border border-emerald-700/50">
                             <strong className="text-emerald-400 text-xs">Próximo Km:</strong>
                             <span className="font-black text-sm text-emerald-300">
-                              {(item.proximoKmService || (item.ultimoServiceKm + item.intervaloKm)).toLocaleString('es-PY')} km
+                              {(item.ultimoServiceKm + item.intervaloKm).toLocaleString('es-PY')} km
                             </span>
                             <span className="text-[10px] text-emerald-400/80 font-bold">
                               (+{item.intervaloKm.toLocaleString('es-PY')} km)

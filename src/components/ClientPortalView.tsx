@@ -483,11 +483,15 @@ export function ClientPortalView({
                                         </span>
                                       )}
                                       <span className="bg-emerald-950/80 text-emerald-300 font-black text-xs px-2.5 py-1 rounded-lg border border-emerald-700/60 shadow-2xs">
-                                        Próximo: {resolveProximoKm(
-                                          order.vehiculo?.kilometraje || 0,
-                                          order.mantenimiento.proximoKmService,
-                                          order.mantenimiento.intervaloKm
-                                        ).toLocaleString()} km (+{intervalKm.toLocaleString()} km)
+                                        Próximo: {(
+                                          Number(order.vehiculo?.kilometraje || 0) > 0
+                                            ? Number(order.vehiculo?.kilometraje || 0) + intervalKm
+                                            : resolveProximoKm(
+                                                order.vehiculo?.kilometraje || 0,
+                                                order.mantenimiento.proximoKmService,
+                                                order.mantenimiento.intervaloKm
+                                              )
+                                        ).toLocaleString('es-PY')} km (+{intervalKm.toLocaleString('es-PY')} km)
                                       </span>
                                       <span className={`font-extrabold text-[10px] px-2.5 py-1 rounded-lg border ${
                                         isOverdue

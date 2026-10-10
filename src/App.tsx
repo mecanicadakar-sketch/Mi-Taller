@@ -135,7 +135,8 @@ export default function App() {
   };
 
   const remindersCount = useMemo(() => {
-    return calculateReminders(workOrders, clients, 1000).length;
+    const list = calculateReminders(workOrders, clients);
+    return list.filter((r) => r.estadoRecordatorio === 'overdue' || r.estadoRecordatorio === 'due_soon').length;
   }, [workOrders, clients]);
 
   // Preselected info for launching new work order

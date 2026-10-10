@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Client, Vehicle, WorkOrder, Workshop, OrderStatus } from '../types/tallerya';
 import { formatDateSpanish } from './dateUtils';
+import { resolveProximoKm } from '../services/whatsappReminderService';
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   ingresado: 'Ingresado',
@@ -64,7 +65,9 @@ export function downloadVehicleHistoryPDF({
   const earliestOrder = vehicleOrders[vehicleOrders.length - 1];
 
   // Next service calculation from latest order if present
-  const proximoKm = latestOrder?.mantenimiento?.proximoKmService || (vehKm > 0 ? vehKm + 10000 : 0);
+  const latestOtKm = latestOrder?.vehiculo?.kilometraje || vehKm || 0;
+  const latestOtInterval = latestOrder?.mantenimiento?.intervaloKm || 10000;
+  const proximoKm = resolveProximoKm(latestOtKm, latestOrder?.mantenimiento?.proximoKmService, latestOtInterval);
 
   // 1. Header Banner (Slate-900)
   doc.setFillColor(15, 23, 42); // #0f172a
@@ -240,8 +243,13 @@ export function downloadVehicleHistoryPDF({
       if (checks.length > 0) {
         serviciosDesc.push(`Mantenimiento: ${checks.join(', ')}`);
       }
-      if (wo.mantenimiento.proximoKmService) {
-        serviciosDesc.push(`Próx. Objetivo: ${wo.mantenimiento.proximoKmService.toLocaleString('es-AR')} km`);
+      if (wo.mantenimiento.proximoKmService || (wo.vehiculo?.kilometraje && wo.mantenimiento.intervaloKm)) {
+        const rowProx = resolveProximoKm(
+          wo.vehiculo?.kilometraje || 0,
+          wo.mantenimiento.proximoKmService,
+          wo.mantenimiento.intervaloKm || 10000
+        );
+        serviciosDesc.push(`Próx. Objetivo: ${rowProx.toLocaleString('es-AR')} km`);
       }
     }
 

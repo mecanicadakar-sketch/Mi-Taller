@@ -418,15 +418,34 @@ export function mapSheetRowsToEntities(
     };
 
     let kmCurrent = cleanNumber(kmStr, 0);
-    const intervalKm = cleanNumber(intervaloStr, 10000);
-    const nextKm = cleanNumber(proximoCambioStr, 0);
+    let intervalKm = cleanNumber(intervaloStr, 0);
+    
+    // If interval was not explicitly given, detect from text or fall back intelligently
+    if (!intervalKm || intervalKm <= 0) {
+      const textToScan = `${falla || ''} ${filtrosCambiados || ''} ${tipoAceite || ''}`.toLowerCase();
+      if (textToScan.includes('5.000') || textToScan.includes('5000') || textToScan.includes('5k') || textToScan.includes('5 mil')) {
+        intervalKm = 5000;
+      } else if (textToScan.includes('7.000') || textToScan.includes('7000') || textToScan.includes('7k')) {
+        intervalKm = 7000;
+      } else {
+        intervalKm = 10000;
+      }
+    }
+    // Fix if stored as multiplier (e.g. 5 -> 5000)
+    if (intervalKm > 0 && intervalKm <= 50) {
+      intervalKm = intervalKm * 1000;
+    }
+
+    let nextKm = cleanNumber(proximoCambioStr, 0);
+    if (nextKm > 0 && nextKm <= 50) {
+      nextKm = nextKm * 1000;
+    }
 
     if (kmCurrent === 0 && nextKm > 0 && intervalKm > 0 && nextKm > intervalKm) {
       kmCurrent = nextKm - intervalKm;
     }
 
-    const baseKm = kmCurrent;
-    const calculatedNextKm = resolveProximoKm(baseKm, kmCurrent, nextKm, intervalKm);
+    const calculatedNextKm = resolveProximoKm(kmCurrent, nextKm, intervalKm);
 
     // Build maintenance object if service log details are present
     const filtrosLower = (filtrosCambiados || '').toLowerCase();
@@ -434,8 +453,8 @@ export function mapSheetRowsToEntities(
 
     const maintenanceObj = hasServiceDetails
       ? {
-          intervaloKm: intervalKm || 10000,
-          tipoAceiteMotor: tipoAceite || '5W30 Sintético',
+          intervaloKm: intervalKm || 5000,
+          tipoAceiteMotor: tipoAceite || (intervalKm === 5000 ? '15W40 Mineral' : '5W30 Sintético'),
           proximoKmService: calculatedNextKm,
           filtroAceite: filtrosLower.includes('aceite') || filtrosLower.length === 0,
           filtroAire: filtrosLower.includes('aire') || filtrosLower.length === 0,

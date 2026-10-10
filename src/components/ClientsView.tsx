@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { matchesQuery } from '../utils/searchUtils';
 import { formatDateSpanish, parseAndNormalizeDate } from '../utils/dateUtils';
+import { resolveProximoKm } from '../services/whatsappReminderService';
 import { VehicleReportModal } from './VehicleReportModal';
 import { downloadVehicleHistoryPDF } from '../utils/vehicleReportUtils';
 
@@ -1394,9 +1395,13 @@ export function ClientsView({
                                   ✓ Filtro Habitáculo
                                 </span>
                               )}
-                              {order.mantenimiento.proximoKmService && (
+                              {Boolean(order.mantenimiento.proximoKmService || (order.vehiculo?.kilometraje && order.mantenimiento.intervaloKm)) && (
                                 <span className="px-2.5 py-1 bg-amber-950/60 border border-amber-800/80 text-amber-300 text-[11px] rounded-lg font-bold">
-                                  📌 Próximo Service: {order.mantenimiento.proximoKmService.toLocaleString()} km
+                                  📌 Próximo Service: {resolveProximoKm(
+                                    order.vehiculo?.kilometraje || 0,
+                                    order.mantenimiento.proximoKmService,
+                                    order.mantenimiento.intervaloKm || 10000
+                                  ).toLocaleString('es-PY')} km
                                 </span>
                               )}
                             </div>

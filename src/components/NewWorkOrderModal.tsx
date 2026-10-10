@@ -210,6 +210,9 @@ export function NewWorkOrderModal({
         setModelo(v.modelo);
         setAnio(v.anio);
         setKilometraje(v.kilometraje);
+        if (v.kilometraje) {
+          setCustomProximoKm(String(Number(v.kilometraje) + (Number(intervaloKm) || 5000)));
+        }
       }
     }
   };

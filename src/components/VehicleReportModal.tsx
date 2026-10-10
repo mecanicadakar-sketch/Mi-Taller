@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Client, Vehicle, WorkOrder, Workshop, OrderStatus } from '../types/tallerya';
 import { formatDateSpanish } from '../utils/dateUtils';
+import { resolveProximoKm } from '../services/whatsappReminderService';
 import { downloadVehicleHistoryPDF } from '../utils/vehicleReportUtils';
 
 interface VehicleReportModalProps {
@@ -73,7 +74,9 @@ export function VehicleReportModal({
   const totalInvertido = vehicleOrders.reduce((acc, wo) => acc + (wo.totalEstimado || 0), 0);
   const latestOrder = vehicleOrders[0];
   const earliestOrder = vehicleOrders[vehicleOrders.length - 1];
-  const proximoKm = latestOrder?.mantenimiento?.proximoKmService || (vehicle.kilometraje ? vehicle.kilometraje + 10000 : 0);
+  const latestKm = latestOrder?.vehiculo?.kilometraje || vehicle.kilometraje || 0;
+  const latestInterval = latestOrder?.mantenimiento?.intervaloKm || 10000;
+  const proximoKm = resolveProximoKm(latestKm, latestOrder?.mantenimiento?.proximoKmService, latestInterval);
 
   const handlePrint = () => {
     window.print();

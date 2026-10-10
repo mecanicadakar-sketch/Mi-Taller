@@ -377,6 +377,14 @@ export function sendOrderWhatsApp(order: WorkOrder) {
   if (diagnostico) {
     message += `🔍 *Diagnóstico Técnico:* ${diagnostico}\n`;
   }
+  if (order.mantenimiento) {
+    const kmInicial = Number(order.vehiculo?.kilometraje || 0);
+    const intervalKm = order.mantenimiento.intervaloKm || 10000;
+    const proxKm = kmInicial > 0 ? kmInicial + intervalKm : (order.mantenimiento.proximoKmService || 0);
+    message += `🛢️ *Service / Mantenimiento:* ${intervalKm.toLocaleString('es-PY')} km\n`;
+    if (kmInicial > 0) message += `📍 *Km Inicial:* ${kmInicial.toLocaleString('es-PY')} km\n`;
+    if (proxKm > 0) message += `🎯 *Próximo Service:* ${proxKm.toLocaleString('es-PY')} km (+${intervalKm.toLocaleString('es-PY')} km)\n`;
+  }
   if (total > 0) {
     message += `💰 *Presupuesto Estimado:* $${total.toLocaleString('es-AR')}\n`;
   }

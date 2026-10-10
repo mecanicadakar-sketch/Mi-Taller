@@ -345,19 +345,36 @@ export function resolveProximoKm(
     rawProximo = rawProximo * 1000;
   }
 
-  // Case 1: If rawProximo was specified as a relative delta (e.g. 5000 or <= 50000)
-  // while the vehicle mileage at service is greater than that delta
-  if (rawProximo && rawProximo > 0 && rawProximo <= 50000 && ultimoKm > rawProximo) {
-    // If rawProximo was relative 10000 but the detected interval is 5000
-    if (rawProximo === 10000 && intervalo === 5000) {
-      return ultimoKm + 5000;
-    }
-    return ultimoKm + rawProximo;
+  // Base expected next mileage: exactly Initial Km + Selected Interval (e.g. 30.511 + 10.000 = 40.511 km)
+  const baseTarget = ultimoKm > 0 ? ultimoKm + intervalo : intervalo;
+
+  // If no rawProximo or invalid, always return the exact sum
+  if (!rawProximo || rawProximo <= 0) {
+    return baseTarget;
   }
 
-  // Case 2: If explicit rawProximo target was set and is strictly in the future
-  if (rawProximo && rawProximo > ultimoKm) {
-    // Reconcile if the detected interval is 5000 km, but rawProximo had the default 10k (+10000)
+  // Self-heal: If rawProximo was corrupted by doubling the mileage (e.g. 30.511 + 30.511 = 61.022)
+  if (ultimoKm > 0 && Math.abs(rawProximo - (ultimoKm * 2)) <= 500) {
+    return baseTarget;
+  }
+
+  // If rawProximo is less than or equal to initial km, it cannot be a future target
+  if (ultimoKm > 0 && rawProximo <= ultimoKm) {
+    // Only if rawProximo was specifically one of the known interval deltas:
+    const knownDeltas = [5000, 7000, 10000, 15000, 20000, 50000, 100000];
+    if (knownDeltas.includes(rawProximo)) {
+      return ultimoKm + rawProximo;
+    }
+    return baseTarget;
+  }
+
+  // If rawProximo is in the future
+  if (ultimoKm > 0 && rawProximo > ultimoKm) {
+    // If the difference from ultimoKm is absurd (e.g. > 150.000 km)
+    if ((rawProximo - ultimoKm) > 150000) {
+      return baseTarget;
+    }
+    // Reconcile if the detected interval is 5000 km, but rawProximo had +10000
     if (intervalo === 5000 && (rawProximo - ultimoKm) >= 8000) {
       return ultimoKm + 5000;
     }
@@ -365,15 +382,15 @@ export function resolveProximoKm(
     if (intervalo === 7000 && Math.abs((rawProximo - ultimoKm) - 10000) <= 500) {
       return ultimoKm + 7000;
     }
+    // If rawProximo delta equals or is close to the expected interval, use baseTarget
+    if (Math.abs((rawProximo - ultimoKm) - intervalo) <= 100) {
+      return baseTarget;
+    }
+    // If rawProximo is a custom user target
     return rawProximo;
   }
 
-  // Case 3: Calculate from last service mileage + interval
-  if (ultimoKm > 0) {
-    return ultimoKm + intervalo;
-  }
-
-  return rawProximo && rawProximo > 0 ? rawProximo : intervalo;
+  return baseTarget;
 }
 
 /**
@@ -705,7 +722,9 @@ export function buildWhatsAppMessage(
   const fechaRealizada = reminder.ultimoServiceFechaFormateada;
   const fechaVence = reminder.fechaVencimientoFormateada;
   const kmInicial = reminder.ultimoServiceKm > 0 ? `${reminder.ultimoServiceKm.toLocaleString('es-PY')} km` : null;
-  const kmProximo = (reminder.proximoKmService || (reminder.ultimoServiceKm > 0 ? reminder.ultimoServiceKm + reminder.intervaloKm : 0));
+  const kmProximo = reminder.ultimoServiceKm > 0
+    ? reminder.ultimoServiceKm + reminder.intervaloKm
+    : (reminder.proximoKmService || 0);
   const kmProximoStr = kmProximo > 0 ? `${kmProximo.toLocaleString('es-PY')} km` : null;
 
   let text = `👋 Hola *${reminder.clientNombre}*, le saludamos de *${tallerNombre}*.\n\n`;
