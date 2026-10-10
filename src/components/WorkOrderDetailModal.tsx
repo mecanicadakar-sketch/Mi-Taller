@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { WorkOrder, OrderStatus, InventoryItem, Mechanic } from '../types/tallerya';
-import { Wrench, Car, User, Phone, CheckCircle2, Clock, Plus, Trash2, Save, Printer, Users, CheckSquare, Sparkles, Package } from 'lucide-react';
-import { resolveProximoKm } from '../services/whatsappReminderService';
+import { useState, useEffect, useMemo } from 'react';
+import { WorkOrder, OrderStatus, InventoryItem, Mechanic, MantenimientoChecklist } from '../types/tallerya';
+import { Wrench, Car, User, Phone, CheckCircle2, Clock, Plus, Trash2, Save, Printer, Users, CheckSquare, Sparkles, Package, Download, FileText, MessageCircle } from 'lucide-react';
+import { resolveProximoKm, detectServiceInterval } from '../services/whatsappReminderService';
 import { formatDateSpanish, parseAndNormalizeDate } from '../utils/dateUtils';
+import { useToast } from '../context/ToastContext';
+import { downloadOrderPDF, sendOrderWhatsApp, resolveAssignedMechanic, isDemoMechanicName } from '../utils/orderShareUtils';
 
 interface WorkOrderDetailModalProps {
   order: WorkOrder;
@@ -32,6 +34,8 @@ export function WorkOrderDetailModal({
   onDeleteOrder,
   onOpenMechanicsModal,
 }: WorkOrderDetailModalProps) {
+  const { showSuccess, showError } = useToast();
+
   // Client state
   const [clienteNombre, setClienteNombre] = useState(order.clienteNombre || '');
   const [clienteTelefono, setClienteTelefono] = useState(order.clienteTelefono || '');
@@ -61,8 +65,65 @@ export function WorkOrderDetailModal({
   const [fallaReportada, setFallaReportada] = useState(order.fallaReportada || '');
   const [estado, setEstado] = useState<OrderStatus>(order.estado);
   const [diagnostico, setDiagnostico] = useState(order.diagnosticoTecnico || '');
-  const [mecanico, setMecanico] = useState(order.mecanicoAsignado || 'Mecanico Juan Pérez');
+  const [mecanico, setMecanico] = useState(() => {
+    return resolveAssignedMechanic(order.mecanicoAsignado, mechanics);
+  });
   const [servicios, setServicios] = useState(order.servicios || []);
+
+  // Maintenance Service State
+  const initialInterval = useMemo(() => {
+    return detectServiceInterval(order);
+  }, [order]);
+  const [intervaloKm, setIntervaloKm] = useState<number>(() => {
+    const raw = order.mantenimiento?.intervaloKm;
+    if (raw && raw > 0) return raw <= 50 ? raw * 1000 : raw;
+    return initialInterval;
+  });
+  const [proximoKmInput, setProximoKmInput] = useState<number>(() => {
+    return resolveProximoKm(
+      order.vehiculo?.kilometraje || 0,
+      order.mantenimiento?.proximoKmService,
+      initialInterval
+    );
+  });
+  const [hasMaintenance, setHasMaintenance] = useState<boolean>(
+    Boolean(order.mantenimiento || order.fallaReportada?.toLowerCase().includes('service') || order.fallaReportada?.toLowerCase().includes('5.000'))
+  );
+
+  const isCajaService = Boolean(
+    order.mantenimiento?.aceiteCajaAutomatica ||
+    order.mantenimiento?.filtroCajaATF ||
+    intervaloKm === 50000
+  );
+
+  const getDetailMonths = (km: number, isCaja: boolean) => {
+    if (isCaja) return 24;
+    if (km <= 5000) return 6;
+    if (km === 7000) return 8;
+    if (km === 10000 || km === 20000) return 12;
+    if (km === 50000) return 24;
+    if (km === 100000) return 36;
+    return 12;
+  };
+
+  const detailMeses = getDetailMonths(intervaloKm, isCajaService);
+  const detailFechaVencimiento = useMemo(() => {
+    try {
+      const d = new Date(parseAndNormalizeDate(order.fechaIngreso));
+      d.setMonth(d.getMonth() + detailMeses);
+      return formatDateSpanish(d.toISOString());
+    } catch {
+      return '';
+    }
+  }, [order.fechaIngreso, detailMeses]);
+
+  // Synchronize mechanic if mechanics change or load asynchronously
+  useEffect(() => {
+    const resolved = resolveAssignedMechanic(mecanico || order.mecanicoAsignado, mechanics);
+    if (resolved && resolved !== mecanico) {
+      setMecanico(resolved);
+    }
+  }, [mechanics]);
 
   // Form for adding a new service or parts line
   const [nuevaTarea, setNuevaTarea] = useState('');
@@ -193,6 +254,23 @@ export function WorkOrderDetailModal({
 
   const handleSaveChanges = () => {
     const totalEst = calculateTotal();
+    const finalInterval = Number(intervaloKm) || 5000;
+    const finalTargetKm = Number(proximoKmInput) || (Number(kilometraje || 0) + finalInterval);
+
+    let finalMantenimiento: MantenimientoChecklist | undefined = undefined;
+    if (hasMaintenance || order.mantenimiento) {
+      finalMantenimiento = {
+        ...(order.mantenimiento || {
+          filtroAceite: true,
+          filtroAire: true,
+          aceiteMotor: true,
+          tipoAceiteMotor: finalInterval === 5000 ? '15W40 Mineral' : '5W30 Sintético',
+        }),
+        intervaloKm: finalInterval,
+        proximoKmService: finalTargetKm,
+      };
+    }
+
     const updated: WorkOrder = {
       ...order,
       fechaIngreso: parseAndNormalizeDate(fechaIngreso),
@@ -214,10 +292,53 @@ export function WorkOrderDetailModal({
       mecanicoAsignado: mecanico,
       servicios,
       totalEstimado: totalEst,
+      mantenimiento: finalMantenimiento,
     };
 
     onUpdateOrder(updated);
     onClose();
+  };
+
+  const getCurrentOrderSnapshot = (): WorkOrder => ({
+    ...order,
+    clienteNombre,
+    clienteTelefono,
+    fallaReportada,
+    diagnosticoTecnico: diagnostico,
+    mecanicoAsignado: mecanico,
+    estado,
+    vehiculo: {
+      ...order.vehiculo,
+      patente,
+      marca,
+      modelo,
+      anio,
+      kilometraje,
+      nivelCombustible,
+      observacionesVisuales,
+    },
+    servicios,
+    totalEstimado: calculateTotal(),
+  });
+
+  const handleDownloadPDF = () => {
+    try {
+      downloadOrderPDF(getCurrentOrderSnapshot());
+      showSuccess('PDF Generado Exitosamente', `Se descargó el comprobante de la orden ${order.numeroOrden}.`);
+    } catch (error) {
+      console.error('Error al generar el PDF de la orden:', error);
+      showError('Error al Generar PDF', 'Ocurrió un problema al procesar la descarga.');
+    }
+  };
+
+  const handleSendWhatsApp = () => {
+    try {
+      sendOrderWhatsApp(getCurrentOrderSnapshot());
+      showSuccess('WhatsApp Abierto', 'Se generó el mensaje de la orden para enviar al cliente.');
+    } catch (error) {
+      console.error('Error al abrir WhatsApp:', error);
+      showError('Error de WhatsApp', 'No se pudo abrir la aplicación de WhatsApp.');
+    }
   };
 
   return (
@@ -243,7 +364,27 @@ export function WorkOrderDetailModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSendWhatsApp}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Enviar resumen de la orden por WhatsApp"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Enviar</span> WhatsApp
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadPDF}
+              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 border border-slate-800 transition-colors cursor-pointer"
+              title="Descargar orden de trabajo en PDF"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Imprimir /</span> PDF
+            </button>
+
             <select
               value={estado}
               onChange={(e) => setEstado(e.target.value as OrderStatus)}
@@ -256,7 +397,7 @@ export function WorkOrderDetailModal({
 
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 text-2xl font-bold leading-none p-1"
+              className="text-slate-400 hover:text-slate-600 text-2xl font-bold leading-none p-1 cursor-pointer"
             >
               &times;
             </button>
@@ -328,24 +469,19 @@ export function WorkOrderDetailModal({
                 }}
                 className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg font-semibold text-slate-900"
               >
-                {mecanico && !mechanics.some((m) => m.nombre === mecanico) && (
-                  <option value={mecanico}>{mecanico}</option>
-                )}
-                {mechanics.filter(m => m.activo).length > 0 ? (
-                  mechanics
-                    .filter((m) => m.activo)
-                    .map((m) => (
-                      <option key={m.id} value={m.nombre}>
-                        {m.nombre} {m.especialidad ? `(${m.especialidad})` : ''}
-                      </option>
-                    ))
-                ) : (
-                  <>
-                    <option value="Mecanico Juan Pérez">Juan Pérez (Mecánico General)</option>
-                    <option value="Mecanico Pedro Gómez">Pedro Gómez (Especialista Frenos)</option>
-                    <option value="Ing. Marcelo R.">Marcelo R. (Diagnóstico Electrónico)</option>
-                  </>
-                )}
+                <option value="">-- Sin mecánico asignado (Equipo del Taller) --</option>
+                {mecanico &&
+                  !isDemoMechanicName(mecanico) &&
+                  !mechanics.some((m) => m.nombre === mecanico) && (
+                    <option value={mecanico}>{mecanico}</option>
+                  )}
+                {mechanics
+                  .filter((m) => m.activo)
+                  .map((m) => (
+                    <option key={m.id} value={m.nombre}>
+                      {m.nombre} {m.especialidad ? `(${m.especialidad})` : ''}
+                    </option>
+                  ))}
                 <option value="__NEW__" className="font-bold text-amber-700 bg-amber-50">
                   + Otro mecánico...
                 </option>
@@ -402,21 +538,39 @@ export function WorkOrderDetailModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] font-semibold text-slate-600">Kilometraje (KM)</label>
-                <input
-                  type="number"
-                  value={kilometraje}
-                  onChange={(e) => setKilometraje(Number(e.target.value))}
-                  className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg text-slate-900"
-                />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-end">
+              <div className="bg-amber-50/80 p-2 rounded-xl border border-amber-300">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-extrabold text-amber-950 uppercase tracking-wide">
+                    Kilometraje Inicial / Entrada:
+                  </label>
+                  {Number(kilometraje) > 0 && (
+                    <span className="text-[10px] font-bold text-amber-800 bg-amber-200/90 px-1.5 py-0.5 rounded">
+                      {Number(kilometraje).toLocaleString('es-PY')} km
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <input
+                    type="number"
+                    value={kilometraje || ''}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setKilometraje(val);
+                      if (intervaloKm) {
+                        setProximoKmInput(val + intervaloKm);
+                      }
+                    }}
+                    className="w-full p-2 bg-white border-2 border-amber-400 focus:border-amber-600 rounded-lg text-base sm:text-lg font-black text-slate-900 shadow-inner"
+                  />
+                  <span className="text-xs font-black text-amber-950 shrink-0">km</span>
+                </div>
               </div>
               <div>
                 <label className="text-[11px] font-semibold text-slate-600">Combustible</label>
                 <select
                   value={nivelCombustible}
-                  onChange={(e) => setNivelCombustible(e.target.value)}
+                  onChange={(e) => setNivelCombustible(e.target.value as any)}
                   className="w-full mt-0.5 p-2 bg-white border border-slate-200 rounded-lg text-slate-900"
                 >
                   <option value="Reserva">Reserva</option>
@@ -441,77 +595,133 @@ export function WorkOrderDetailModal({
           </div>
         </div>
 
-        {/* Maintenance Checklist Card (If present) */}
-        {order.mantenimiento && (
-          <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
+        {/* Maintenance Checklist Card */}
+        {(hasMaintenance || order.mantenimiento) && (
+          <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-3 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-extrabold text-emerald-900 flex items-center gap-1.5">
                 <CheckSquare className="w-4 h-4 text-emerald-600" />
-                Service de Mantenimiento Preventivo ({order.mantenimiento.intervaloKm?.toLocaleString() || 10000} km)
+                Service de Mantenimiento Preventivo ({intervaloKm?.toLocaleString() || 5000} km)
               </span>
-              {order.mantenimiento && (
-                <span className="bg-emerald-600 text-white font-extrabold text-[10px] px-2.5 py-0.5 rounded-full">
-                  Próximo Service: {resolveProximoKm(
-                    kilometraje || 0,
-                    order.mantenimiento.proximoKmService,
-                    order.mantenimiento.intervaloKm
-                  ).toLocaleString()} km
-                </span>
-              )}
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-emerald-800">Próximo objetivo:</span>
+                <input
+                  type="number"
+                  value={proximoKmInput}
+                  onChange={(e) => setProximoKmInput(Number(e.target.value))}
+                  className="w-28 p-1 bg-white border border-emerald-300 rounded font-extrabold text-xs text-emerald-950 text-center"
+                />
+                <span className="font-bold text-emerald-800">km</span>
+              </div>
             </div>
 
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {order.mantenimiento.aceiteMotor && (
-                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
-                  ✓ Aceite Motor ({order.mantenimiento.tipoAceiteMotor || 'Sintético'})
-                </span>
-              )}
-              {order.mantenimiento.filtroAceite && (
-                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
-                  ✓ Filtro Aceite
-                </span>
-              )}
-              {order.mantenimiento.filtroAire && (
-                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
-                  ✓ Filtro Aire
-                </span>
-              )}
-              {order.mantenimiento.filtroCombustible && (
-                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
-                  ✓ Filtro Combustible
-                </span>
-              )}
-              {order.mantenimiento.filtroHabitaculo && (
-                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
-                  ✓ Filtro Habitáculo/AA
-                </span>
-              )}
-              {order.mantenimiento.filtroCajaATF && (
-                <span className="bg-amber-100 border border-amber-300 text-amber-950 font-bold px-2 py-0.5 rounded-md text-[11px]">
-                  ✓ Filtro Caja ATF
-                </span>
-              )}
-              {order.mantenimiento.aceiteCajaAutomatica && (
-                <span className="bg-amber-100 border border-amber-300 text-amber-950 font-bold px-2 py-0.5 rounded-md text-[11px]">
-                  ⚡ Aceite Caja Auto (ATF)
-                </span>
-              )}
-              {order.mantenimiento.correaDistribucion && (
-                <span className="bg-rose-100 border border-rose-300 text-rose-950 font-bold px-2 py-0.5 rounded-md text-[11px]">
-                  ⚡ Kit Correa Distribución
-                </span>
-              )}
-              {order.mantenimiento.bujias && (
-                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
-                  ✓ Bujías
-                </span>
-              )}
-              {order.mantenimiento.pastillasFreno && (
-                <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
-                  ✓ Pastillas Freno
-                </span>
-              )}
+            {/* Interval buttons */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <span className="text-[10px] font-bold text-slate-500 uppercase mr-1">Cambiar Intervalo:</span>
+              {[
+                { km: 5000, label: '+ 5.000 km (6m Motor)' },
+                { km: 7000, label: '+ 7.000 km (8m Motor)' },
+                { km: 10000, label: '+ 10.000 km (12m Motor)' },
+                { km: 20000, label: '+ 20.000 km (12m)' },
+                { km: 50000, label: '+ 50.000 km (24m Caja ATF)' },
+                { km: 100000, label: '+ 100.000 km (36m Distribución)' },
+              ].map((item) => (
+                <button
+                  key={item.km}
+                  type="button"
+                  onClick={() => {
+                    setIntervaloKm(item.km);
+                    setProximoKmInput((Number(kilometraje) || 0) + item.km);
+                  }}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                    intervaloKm === item.km
+                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-400'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-emerald-100'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
             </div>
+
+            {/* Live calculation bar sumando lo seleccionado y vencimiento por fecha */}
+            <div className="bg-emerald-950/10 border border-emerald-300 rounded-xl p-2.5 flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap text-xs text-slate-800">
+                <span className="font-bold text-slate-700">Km Inicial:</span>
+                <span className="font-black text-sm text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-300 shadow-2xs">
+                  {Number(kilometraje || 0).toLocaleString('es-PY')} km
+                </span>
+                <span className="font-black text-emerald-700 text-xs">+ {Number(intervaloKm || 5000).toLocaleString('es-PY')} km</span>
+                <span className="font-bold text-slate-700">= Próximo:</span>
+                <span className="font-black text-sm text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300 shadow-2xs">
+                  {Number(proximoKmInput || 0).toLocaleString('es-PY')} km
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-950 bg-white/95 px-2.5 py-1 rounded-lg border border-emerald-300 shadow-2xs">
+                <span>📅 Vencimiento por Fecha:</span>
+                <span className="font-black text-emerald-950 underline decoration-emerald-500">
+                  {detailFechaVencimiento || 'Calculando...'}
+                </span>
+                <span className="text-[10px] text-emerald-700">({detailMeses} meses)</span>
+              </div>
+            </div>
+
+            {order.mantenimiento && (
+              <div className="flex flex-wrap gap-1.5 pt-1 border-t border-emerald-100">
+                {order.mantenimiento.aceiteMotor && (
+                  <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                    ✓ Aceite Motor ({order.mantenimiento.tipoAceiteMotor || (intervaloKm === 5000 ? '15W40 Mineral' : 'Sintético')})
+                  </span>
+                )}
+                {order.mantenimiento.filtroAceite && (
+                  <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                    ✓ Filtro Aceite
+                  </span>
+                )}
+                {order.mantenimiento.filtroAire && (
+                  <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                    ✓ Filtro Aire
+                  </span>
+                )}
+                {order.mantenimiento.filtroCombustible && (
+                  <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                    ✓ Filtro Combustible
+                  </span>
+                )}
+                {order.mantenimiento.filtroHabitaculo && (
+                  <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                    ✓ Filtro Habitáculo/AA
+                  </span>
+                )}
+                {order.mantenimiento.filtroCajaATF && (
+                  <span className="bg-amber-100 border border-amber-300 text-amber-950 font-bold px-2 py-0.5 rounded-md text-[11px]">
+                    ✓ Filtro Caja ATF
+                  </span>
+                )}
+                {order.mantenimiento.aceiteCajaAutomatica && (
+                  <span className="bg-amber-100 border border-amber-300 text-amber-950 font-bold px-2 py-0.5 rounded-md text-[11px]">
+                    ⚡ Aceite Caja Auto (ATF)
+                  </span>
+                )}
+                {order.mantenimiento.correaDistribucion && (
+                  <span className="bg-rose-100 border border-rose-300 text-rose-950 font-bold px-2 py-0.5 rounded-md text-[11px]">
+                    ⚡ Kit Correa Distribución
+                  </span>
+                )}
+                {order.mantenimiento.bujias && (
+                  <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                    ✓ Bujías
+                  </span>
+                )}
+                {order.mantenimiento.pastillasFreno && (
+                  <span className="bg-white border border-emerald-300 text-emerald-900 font-semibold px-2 py-0.5 rounded-md text-[11px]">
+                    ✓ Pastillas Freno
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -817,11 +1027,29 @@ export function WorkOrderDetailModal({
               )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSendWhatsApp}
+                className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Enviar por WhatsApp
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadPDF}
+                className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 border border-slate-800 transition-colors cursor-pointer"
+              >
+                <Printer className="w-4 h-4 text-amber-400" />
+                Imprimir / PDF
+              </button>
+
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
               >
                 Cancelar
               </button>
@@ -829,7 +1057,7 @@ export function WorkOrderDetailModal({
               <button
                 type="button"
                 onClick={handleSaveChanges}
-                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5"
+                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
               >
                 <Save className="w-4 h-4" />
                 Guardar Cambios
