@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { WorkOrder, Workshop, OrderStatus } from '../types/tallerya';
 import { searchWorkOrdersByPatente } from '../services/tallerService';
-import { resolveProximoKm } from '../services/whatsappReminderService';
+import { resolveProximoKm, getMonthsForService, calculateExpirationDate, isGearboxService } from '../services/whatsappReminderService';
 import { formatDateSpanish } from '../utils/dateUtils';
 import { extractOrderFinancials, isDemoMechanicName } from '../utils/orderShareUtils';
 import {
@@ -455,76 +455,105 @@ export function ClientPortalView({
                             </div>
 
                             {/* Mantenimiento Preventivo Checklist if present */}
-                            {order.mantenimiento && (
-                              <div className="bg-emerald-950/30 border border-emerald-800/50 rounded-2xl p-4 space-y-2 text-xs">
-                                <div className="flex items-center justify-between flex-wrap gap-2">
-                                  <span className="font-extrabold text-emerald-300 flex items-center gap-1.5 text-xs">
-                                    <Sparkles className="w-4 h-4 text-emerald-400" />
-                                    <span>Service de Mantenimiento Preventivo ({order.mantenimiento.intervaloKm?.toLocaleString() || 10000} km)</span>
-                                  </span>
-                                  <span className="bg-emerald-800/80 text-emerald-100 font-extrabold text-[10px] px-2.5 py-1 rounded-lg border border-emerald-600/40">
-                                    Próximo Service: {resolveProximoKm(
-                                      order.vehiculo?.kilometraje || 0,
-                                      order.mantenimiento.proximoKmService,
-                                      order.mantenimiento.intervaloKm
-                                    ).toLocaleString()} km
-                                  </span>
-                                </div>
+                            {order.mantenimiento && (() => {
+                              const hasCaja = isGearboxService(order);
+                              const intervalKm = order.mantenimiento.intervaloKm || 10000;
+                              const months = getMonthsForService(intervalKm, hasCaja);
+                              const fechaExpira = calculateExpirationDate(order.fechaIngreso, months);
+                              const hoy = new Date();
+                              const isOverdue = hoy.getTime() > fechaExpira.getTime();
 
-                                <div className="flex flex-wrap gap-1.5 pt-1">
-                                  {order.mantenimiento.aceiteMotor && (
-                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
-                                      ✓ Aceite Motor ({order.mantenimiento.tipoAceiteMotor || 'Sintético'})
-                                    </span>
-                                  )}
-                                  {order.mantenimiento.filtroAceite && (
-                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
-                                      ✓ Filtro Aceite
-                                    </span>
-                                  )}
-                                  {order.mantenimiento.filtroAire && (
-                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
-                                      ✓ Filtro Aire
-                                    </span>
-                                  )}
-                                  {order.mantenimiento.filtroCombustible && (
-                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
-                                      ✓ Filtro Combustible
-                                    </span>
-                                  )}
-                                  {order.mantenimiento.filtroHabitaculo && (
-                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
-                                      ✓ Filtro Habitáculo (A/A)
-                                    </span>
-                                  )}
-                                  {order.mantenimiento.filtroCajaATF && (
-                                    <span className="bg-amber-950/60 border border-amber-700/60 text-amber-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
-                                      ✓ Filtro Caja ATF
-                                    </span>
-                                  )}
-                                  {order.mantenimiento.aceiteCajaAutomatica && (
-                                    <span className="bg-amber-950/60 border border-amber-700/60 text-amber-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
-                                      ⚡ Aceite Caja Auto (ATF)
-                                    </span>
-                                  )}
-                                  {order.mantenimiento.correaDistribucion && (
-                                    <span className="bg-rose-950/60 border border-rose-700/60 text-rose-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
-                                      ⚡ Kit Correa Distribución
-                                    </span>
-                                  )}
-                                  {order.mantenimiento.bujias && (
-                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
-                                      ✓ Bujías de Encendido
-                                    </span>
-                                  )}
-                                  {order.mantenimiento.pastillasFreno && (
-                                    <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
-                                      ✓ Pastillas de Freno
-                                    </span>
-                                  )}
+                              return (
+                                <div className="bg-emerald-950/30 border border-emerald-800/50 rounded-2xl p-4 space-y-2 text-xs">
+                                  <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <div>
+                                      <span className="font-extrabold text-emerald-300 flex items-center gap-1.5 text-xs">
+                                        <Sparkles className="w-4 h-4 text-emerald-400" />
+                                        <span>{hasCaja ? 'Service de Caja (24 meses)' : `Service de Motor (${intervalKm.toLocaleString()} km / ${months} meses)`}</span>
+                                      </span>
+                                      <span className="text-[11px] text-slate-400 block mt-0.5">
+                                        Realizado el: <strong className="text-white">{formatDateSpanish(order.fechaIngreso)}</strong>
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      {Number(order.vehiculo?.kilometraje || 0) > 0 && (
+                                        <span className="bg-slate-900 text-white font-black text-xs px-2.5 py-1 rounded-lg border border-slate-700 shadow-2xs">
+                                          Km Inicial: {Number(order.vehiculo?.kilometraje || 0).toLocaleString('es-PY')} km
+                                        </span>
+                                      )}
+                                      <span className="bg-emerald-950/80 text-emerald-300 font-black text-xs px-2.5 py-1 rounded-lg border border-emerald-700/60 shadow-2xs">
+                                        Próximo: {resolveProximoKm(
+                                          order.vehiculo?.kilometraje || 0,
+                                          order.mantenimiento.proximoKmService,
+                                          order.mantenimiento.intervaloKm
+                                        ).toLocaleString()} km (+{intervalKm.toLocaleString()} km)
+                                      </span>
+                                      <span className={`font-extrabold text-[10px] px-2.5 py-1 rounded-lg border ${
+                                        isOverdue
+                                          ? 'bg-red-500/20 text-red-300 border-red-500/40'
+                                          : 'bg-emerald-800/80 text-emerald-100 border border-emerald-600/40'
+                                      }`}>
+                                        📅 Vencimiento: {formatDateSpanish(fechaExpira.toISOString())} ({months} meses)
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-1.5 pt-1">
+                                    {order.mantenimiento.aceiteMotor && (
+                                      <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                        ✓ Aceite Motor ({order.mantenimiento.tipoAceiteMotor || 'Sintético'})
+                                      </span>
+                                    )}
+                                    {order.mantenimiento.filtroAceite && (
+                                      <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                        ✓ Filtro Aceite
+                                      </span>
+                                    )}
+                                    {order.mantenimiento.filtroAire && (
+                                      <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                        ✓ Filtro Aire
+                                      </span>
+                                    )}
+                                    {order.mantenimiento.filtroCombustible && (
+                                      <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                        ✓ Filtro Combustible
+                                      </span>
+                                    )}
+                                    {order.mantenimiento.filtroHabitaculo && (
+                                      <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                        ✓ Filtro Habitáculo (A/A)
+                                      </span>
+                                    )}
+                                    {order.mantenimiento.filtroCajaATF && (
+                                      <span className="bg-amber-950/60 border border-amber-700/60 text-amber-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                        ✓ Filtro Caja ATF
+                                      </span>
+                                    )}
+                                    {order.mantenimiento.aceiteCajaAutomatica && (
+                                      <span className="bg-amber-950/60 border border-amber-700/60 text-amber-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                        ⚡ Aceite Caja Auto (ATF)
+                                      </span>
+                                    )}
+                                    {order.mantenimiento.correaDistribucion && (
+                                      <span className="bg-rose-950/60 border border-rose-700/60 text-rose-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                        ⚡ Kit Correa Distribución
+                                      </span>
+                                    )}
+                                    {order.mantenimiento.bujias && (
+                                      <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                        ✓ Bujías de Encendido
+                                      </span>
+                                    )}
+                                    {order.mantenimiento.pastillasFreno && (
+                                      <span className="bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 font-medium px-2 py-0.5 rounded-md text-[11px]">
+                                        ✓ Pastillas de Freno
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })()}
 
                             {/* Works Performed (Mano de Obra) */}
                             {financials.servicios.length > 0 && (

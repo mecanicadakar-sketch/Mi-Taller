@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { WorkOrder, Workshop, OrderStatus, Mechanic } from '../types/tallerya';
 import { searchWorkOrdersByPatente } from '../services/tallerService';
-import { resolveProximoKm } from '../services/whatsappReminderService';
+import { resolveProximoKm, getMonthsForService, calculateExpirationDate, isGearboxService } from '../services/whatsappReminderService';
 import { formatDateSpanish } from '../utils/dateUtils';
 import { extractOrderFinancials, resolveAssignedMechanic } from '../utils/orderShareUtils';
 import {
@@ -424,23 +424,49 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
                           )}
 
                           {/* Mantenimiento Preventivo & Service Log */}
-                          {order.mantenimiento && (
-                            <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3.5 space-y-2 text-xs">
-                              <div className="flex items-center justify-between flex-wrap gap-2">
-                                <span className="font-extrabold text-emerald-950 flex items-center gap-1.5 text-xs">
-                                  <Sparkles className="w-4 h-4 text-emerald-600" />
-                                  Service de Mantenimiento Preventivo ({order.mantenimiento.intervaloKm?.toLocaleString() || 10000} km)
-                                </span>
-                                {order.mantenimiento && (
-                                  <span className="bg-emerald-700 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-lg shadow-xs">
-                                    Próximo Service: {resolveProximoKm(
-                                      order.vehiculo?.kilometraje || 0,
-                                      order.mantenimiento.proximoKmService,
-                                      order.mantenimiento.intervaloKm
-                                    ).toLocaleString()} km
-                                  </span>
-                                )}
-                              </div>
+                          {order.mantenimiento && (() => {
+                            const hasCaja = isGearboxService(order);
+                            const intervalKm = order.mantenimiento.intervaloKm || 10000;
+                            const months = getMonthsForService(intervalKm, hasCaja);
+                            const fechaExpira = calculateExpirationDate(order.fechaIngreso, months);
+                            const hoy = new Date();
+                            const isOverdue = hoy.getTime() > fechaExpira.getTime();
+
+                            return (
+                              <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3.5 space-y-2 text-xs">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <div>
+                                    <span className="font-extrabold text-emerald-950 flex items-center gap-1.5 text-xs">
+                                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                                      {hasCaja ? 'Service de Caja (24 meses)' : `Service de Motor (${intervalKm.toLocaleString()} km / ${months} meses)`}
+                                    </span>
+                                    <span className="text-[11px] text-slate-500 block mt-0.5">
+                                      Realizado el: <strong>{formatDateSpanish(order.fechaIngreso)}</strong>
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {Number(order.vehiculo?.kilometraje || 0) > 0 && (
+                                      <span className="bg-white text-slate-900 font-black text-xs px-2.5 py-1 rounded-lg border border-slate-300 shadow-2xs">
+                                        Km Inicial: {Number(order.vehiculo?.kilometraje || 0).toLocaleString('es-PY')} km
+                                      </span>
+                                    )}
+                                    <span className="bg-emerald-100 text-emerald-950 font-black text-xs px-2.5 py-1 rounded-lg border border-emerald-300 shadow-2xs">
+                                      Próximo: {resolveProximoKm(
+                                        order.vehiculo?.kilometraje || 0,
+                                        order.mantenimiento.proximoKmService,
+                                        order.mantenimiento.intervaloKm
+                                      ).toLocaleString('es-PY')} km (+{intervalKm.toLocaleString('es-PY')} km)
+                                    </span>
+                                    <span className={`font-extrabold text-[10px] px-2.5 py-1 rounded-lg border ${
+                                      isOverdue
+                                        ? 'bg-red-500/15 text-red-700 border-red-300'
+                                        : 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
+                                    }`}>
+                                      📅 Vencimiento: {formatDateSpanish(fechaExpira.toISOString())} ({months} meses)
+                                    </span>
+                                  </div>
+                                </div>
 
                               <div className="flex flex-wrap gap-1.5 pt-1">
                                 {order.mantenimiento.aceiteMotor && (
@@ -495,7 +521,7 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
                                 )}
                               </div>
                             </div>
-                          )}
+                          ); })()}
 
                           {/* Services (Mano de Obra) */}
                           {financials.servicios.length > 0 && (
