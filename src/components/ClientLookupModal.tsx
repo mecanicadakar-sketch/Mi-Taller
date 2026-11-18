@@ -231,25 +231,27 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
         {/* Body Container */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 bg-slate-50">
           {/* Search Bar Input */}
-          <form onSubmit={handleSearch} className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Ingresa la Patente de tu Vehículo
+          <form onSubmit={handleSearch} className="bg-amber-50/70 p-4 rounded-xl border-2 border-amber-300 shadow-sm space-y-2.5">
+            <label htmlFor="modal-patente-input" className="block text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+              Escribe aquí la Patente / Chapa de tu Vehículo
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
+                <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-600 pointer-events-none" />
                 <input
+                  id="modal-patente-input"
                   type="text"
                   required
                   value={patenteInput}
-                  onChange={(e) => setPatenteInput(e.target.value)}
-                  placeholder="ABCD123"
-                  className="w-full px-4 py-2.5 bg-slate-100 border-2 border-slate-300 focus:border-amber-500 rounded-xl text-base font-extrabold uppercase font-mono tracking-wider text-slate-900 placeholder:text-slate-400/50 placeholder:font-normal focus:outline-hidden"
+                  onChange={(e) => setPatenteInput(e.target.value.toUpperCase())}
+                  placeholder="Ej: ABCD123"
+                  className="w-full pl-11 pr-4 py-3 bg-white border-2 border-amber-500 focus:border-amber-600 focus:ring-4 focus:ring-amber-400/30 rounded-xl text-base sm:text-lg font-black uppercase font-mono tracking-widest text-slate-950 placeholder:text-slate-400 placeholder:font-bold placeholder:tracking-wider shadow-sm focus:outline-hidden transition-all"
                 />
               </div>
               <button
                 type="submit"
                 disabled={searching}
-                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-sm transition-colors text-sm flex items-center gap-2 shrink-0 disabled:opacity-60"
+                className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl shadow-sm transition-colors text-sm uppercase tracking-wider flex items-center justify-center gap-2 shrink-0 disabled:opacity-60 cursor-pointer"
               >
                 {searching ? (
                   <span>Buscando...</span>
@@ -262,9 +264,9 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
               </button>
             </div>
 
-            <div className="pt-3 border-t border-slate-200/80 mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <p className="text-xs text-slate-500 font-medium">
-                Ingrese el Numero de patente Aui.
+            <div className="pt-3 border-t border-amber-200/80 mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <p className="text-xs text-slate-600 font-medium">
+                Ingrese el número de patente aquí (sin espacios ni guiones).
               </p>
               <a
                 href="https://tallerya.vercel.app"

@@ -309,36 +309,46 @@ export function ClientPortalView({
                   Ingresa el dominio o patente de tu auto para conocer el historial de reparaciones, repuestos instalados y el avance actual en el taller.
                 </p>
 
-                <form onSubmit={handleFormSearch} className="flex flex-col sm:flex-row gap-2 pt-2">
-                  <div className="relative flex-1">
-                    <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      value={patenteInput}
-                      onChange={(e) => setPatenteInput(e.target.value.toUpperCase())}
-                      placeholder="ABCD123"
-                      className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-slate-700 text-white placeholder:text-slate-500/60 placeholder:font-normal rounded-2xl text-sm font-bold uppercase tracking-wider focus:outline-hidden focus:border-amber-400 transition-colors"
-                      required
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={searching}
-                    className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 shrink-0"
+                <form onSubmit={handleFormSearch} className="space-y-2.5 pt-2">
+                  <label
+                    htmlFor="portal-patente-input"
+                    className="flex items-center gap-2 text-xs sm:text-sm font-extrabold uppercase tracking-wider text-amber-300"
                   >
-                    {searching ? (
-                      <span className="animate-pulse">Buscando...</span>
-                    ) : (
-                      <>
-                        <Search className="w-4 h-4" />
-                        <span>Buscar Estado</span>
-                      </>
-                    )}
-                  </button>
+                    <Car className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Escribe aquí el número de patente / chapa:</span>
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2.5">
+                    <div className="relative flex-1">
+                      <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-amber-600 pointer-events-none" />
+                      <input
+                        id="portal-patente-input"
+                        type="text"
+                        value={patenteInput}
+                        onChange={(e) => setPatenteInput(e.target.value.toUpperCase())}
+                        placeholder="Ej: ABCD123"
+                        className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-amber-400 text-slate-950 placeholder:text-slate-400 placeholder:font-bold placeholder:tracking-wider rounded-2xl text-base sm:text-lg font-black font-mono uppercase tracking-widest shadow-lg shadow-amber-500/20 ring-4 ring-amber-500/20 focus:outline-hidden focus:border-amber-500 focus:ring-amber-400/50 transition-all"
+                        required
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={searching}
+                      className="px-7 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm uppercase tracking-wider rounded-2xl shadow-lg shadow-amber-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shrink-0 cursor-pointer active:scale-95"
+                    >
+                      {searching ? (
+                        <span className="animate-pulse">Buscando...</span>
+                      ) : (
+                        <>
+                          <Search className="w-4 h-4 stroke-[2.5]" />
+                          <span>Buscar Estado</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </form>
                 <div className="pt-3 border-t border-slate-800/80 mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <p className="text-xs text-slate-400 font-medium">
-                    Ingrese el Numero de patente Aui.
+                  <p className="text-xs text-slate-300 font-medium">
+                    Escribe la patente en el recuadro blanco (sin espacios ni guiones) y presiona <strong className="text-amber-400">Buscar Estado</strong>.
                   </p>
                   <a
                     href="https://tallerya.vercel.app"
