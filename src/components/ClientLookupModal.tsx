@@ -203,20 +203,6 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
                 </p>
               </div>
             </div>
-
-            {/* Install Quick Access Button in Header */}
-            <button
-              type="button"
-              onClick={handleInstallClick}
-              className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md shadow-amber-500/10 transition-all flex items-center justify-center gap-2 shrink-0 active:scale-95 cursor-pointer border border-amber-400/80"
-              title="Instalar acceso rápido en Celular, Tablet o PC"
-            >
-              <Download className="w-4 h-4 stroke-[2.5]" />
-              <span>Instalar Acceso Rápido</span>
-              <span className="hidden md:inline-block px-1.5 py-0.5 bg-slate-950/15 text-slate-950 rounded text-[9px] font-black uppercase">
-                Móvil / PC
-              </span>
-            </button>
           </div>
 
           <button
@@ -280,35 +266,6 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
               </a>
             </div>
           </form>
-
-          {/* Quick Access Card */}
-          <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/5 border border-amber-500/30 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-700 flex items-center justify-center shrink-0">
-                <Smartphone className="w-5 h-5 stroke-[2]" />
-              </div>
-              <div>
-                <p className="text-xs font-black text-slate-900 flex flex-wrap items-center gap-1.5">
-                  <span>Acceso Rápido en tu Celular, Tablet o PC</span>
-                  <span className="text-[10px] bg-amber-500 text-slate-950 font-bold px-1.5 py-0.2 rounded-full">
-                    Sin escribir la web
-                  </span>
-                </p>
-                <p className="text-[11px] text-slate-600 mt-0.5">
-                  Guarda la consulta en tu pantalla de inicio para verificar el estado de tu vehículo con un solo toque.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleInstallClick}
-              className="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
-            >
-              <Download className="w-4 h-4 stroke-[2.5]" />
-              <span>Instalar en Dispositivo</span>
-            </button>
-          </div>
 
           {/* Results Area */}
           {hasSearched && !searching && (
@@ -648,6 +605,34 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
               )}
             </div>
           )}
+          {/* Single Quick Access Card at the end of the box */}
+          <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/5 border border-amber-500/30 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-700 flex items-center justify-center shrink-0">
+                <Smartphone className="w-5 h-5 stroke-[2]" />
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-900 flex flex-wrap items-center gap-1.5">
+                  <span>Acceso Rápido en tu Celular, Tablet o PC</span>
+                  <span className="text-[10px] bg-amber-500 text-slate-950 font-bold px-1.5 py-0.2 rounded-full">
+                    Sin escribir la web
+                  </span>
+                </p>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  Guarda la consulta en tu pantalla de inicio para verificar el estado de tu vehículo con un solo toque.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleInstallClick}
+              className="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
+            >
+              <Download className="w-4 h-4 stroke-[2.5]" />
+              <span>Instalar Acceso Rápido</span>
+            </button>
+          </div>
         </div>
 
         {/* Footer */}
@@ -657,14 +642,6 @@ export function ClientLookupModal({ isOpen, onClose, localWorkOrders = [], mecha
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
               Sistema de Verificación Digital MiTaller
             </span>
-            <button
-              type="button"
-              onClick={handleInstallClick}
-              className="text-amber-800 hover:text-amber-900 font-extrabold flex items-center gap-1 hover:underline cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Instalar Acceso Rápido</span>
-            </button>
           </div>
           <button
             onClick={onClose}
