@@ -168,6 +168,81 @@ export function isGearboxService(wo: Partial<WorkOrder>): boolean {
 }
 
 /**
+ * Checks if a work order actually represents an engine/preventive maintenance service
+ * (as opposed to a general mechanical repair where "Activar Service" was not enabled).
+ */
+export function isMotorMaintenanceOrder(wo: Partial<WorkOrder>): boolean {
+  const m = wo.mantenimiento;
+  const isCaja = isGearboxService(wo);
+
+  if (m) {
+    const hasMotorChecklist = Boolean(
+      m.aceiteMotor ||
+      m.filtroAceite ||
+      m.filtroAire ||
+      m.filtroCombustible ||
+      m.filtroHabitaculo ||
+      m.correaDistribucion ||
+      m.tipoAceiteMotor
+    );
+    // Gearbox-only maintenance (no engine oil/filters/belt) must not overwrite engine service reminders
+    if (isCaja && !hasMotorChecklist) {
+      return false;
+    }
+    return true;
+  }
+
+  // Fallback for legacy/imported orders without a structured wo.mantenimiento object
+  const corpus = [
+    wo.fallaReportada || '',
+    wo.diagnosticoTecnico || '',
+    ...(wo.servicios || []).map((s) => s.descripcion || ''),
+  ]
+    .join(' ')
+    .toLowerCase();
+
+  const hasExplicitEngineOilOrInterval =
+    corpus.includes('aceite motor') ||
+    corpus.includes('aceite de motor') ||
+    corpus.includes('filtro de aceite') ||
+    corpus.includes('filtro aceite') ||
+    corpus.includes('15w40') ||
+    corpus.includes('20w50') ||
+    corpus.includes('10w40') ||
+    corpus.includes('5w30') ||
+    corpus.includes('5w40') ||
+    corpus.includes('0w20') ||
+    corpus.includes('5.000') ||
+    corpus.includes('5000') ||
+    corpus.includes('7.000') ||
+    corpus.includes('7000') ||
+    corpus.includes('10.000') ||
+    corpus.includes('10000') ||
+    corpus.includes('20.000') ||
+    corpus.includes('20000') ||
+    corpus.includes('100.000') ||
+    corpus.includes('100000') ||
+    corpus.includes('correa de distribucion') ||
+    corpus.includes('correa de distribución');
+
+  if (isCaja) {
+    return hasExplicitEngineOilOrInterval;
+  }
+
+  return (
+    hasExplicitEngineOilOrInterval ||
+    corpus.includes('service') ||
+    corpus.includes('mantenimiento') ||
+    corpus.includes('cambio de aceite') ||
+    corpus.includes('mineral') ||
+    corpus.includes('semisintético') ||
+    corpus.includes('semisintetico') ||
+    corpus.includes('sintético') ||
+    corpus.includes('sintetico')
+  );
+}
+
+/**
  * Automatically extracts or resolves the maintenance interval in KM for a work order.
  * Accurately detects and distinguishes 5,000 km (mineral), 7,000 km (semisynthetic),
  * 10,000 km (synthetic), 20,000 km, 50,000 km (ATF), 100,000 km (distribución).
@@ -453,11 +528,17 @@ export function calculateReminders(
   const sortedWorkOrders = [...workOrders].sort((a, b) => getOrderTimestamp(b) - getOrderTimestamp(a));
 
   // Map to find highest km vehicle info across clients and work orders
+  const normalizePatenteKey = (raw?: string): string => {
+    const trimmed = (raw || '').trim().toUpperCase();
+    if (!trimmed || trimmed === 'S/P') return '';
+    return trimmed.replace(/[^A-Z0-9]/g, '');
+  };
+
   const vehicleMaxKm = new Map<string, number>();
   clients.forEach((c) => {
     c.vehiculos.forEach((v) => {
-      const key = (v.patente || '').trim().toUpperCase();
-      if (key && key !== 'S/P') {
+      const key = normalizePatenteKey(v.patente);
+      if (key) {
         const current = vehicleMaxKm.get(key) || 0;
         if ((v.kilometraje || 0) > current) {
           vehicleMaxKm.set(key, v.kilometraje || 0);
@@ -467,8 +548,8 @@ export function calculateReminders(
   });
 
   sortedWorkOrders.forEach((wo) => {
-    const patente = wo.vehiculo?.patente?.trim().toUpperCase();
-    if (patente && patente !== 'S/P') {
+    const patente = normalizePatenteKey(wo.vehiculo?.patente);
+    if (patente) {
       const current = vehicleMaxKm.get(patente) || 0;
       const woKm = wo.vehiculo?.kilometraje || 0;
       if (woKm > current) {
@@ -506,7 +587,7 @@ export function calculateReminders(
     }
 
     const ultimoKm = wo.vehiculo?.kilometraje || 0;
-    const kmActuales = Math.max(vehicleMaxKm.get((wo.vehiculo?.patente || '').trim().toUpperCase()) || 0, ultimoKm);
+    const kmActuales = Math.max(vehicleMaxKm.get(normalizePatenteKey(wo.vehiculo?.patente)) || 0, ultimoKm);
     const rawProximo = wo.mantenimiento?.proximoKmService;
     const proximoKm = resolveProximoKm(ultimoKm, kmActuales, rawProximo, intervalKm);
 
@@ -582,12 +663,13 @@ export function calculateReminders(
 
   // Process work orders
   sortedWorkOrders.forEach((wo) => {
-    const patente = wo.vehiculo?.patente?.trim().toUpperCase() || '';
-    const baseVehicleKey = patente && patente !== 'S/P'
+    const patente = normalizePatenteKey(wo.vehiculo?.patente);
+    const baseVehicleKey = patente
       ? patente
       : `${(wo.clienteNombre || '').toLowerCase().trim()}_${(wo.vehiculo?.marca || '').toLowerCase().trim()}_${(wo.vehiculo?.modelo || '').toLowerCase().trim()}`;
 
     const isCaja = isGearboxService(wo);
+    const isMotorMaint = isMotorMaintenanceOrder(wo);
     const intervalKm = detectServiceInterval(wo);
 
     // 1. If order has Caja maintenance (avisar a los 24 meses)
@@ -609,38 +691,40 @@ export function calculateReminders(
       }
     }
 
-    // 2. Motor maintenance check (5k -> 6 meses, 10k -> 12 meses)
-    const motorKey = `${baseVehicleKey}_motor`;
-    if (!processedVehicleServiceKeys.has(motorKey)) {
-      let motorMonths = 12;
-      let motorLabel = 'Mantenimiento de Motor (10.000 km / 12 meses)';
-      let motorKm = intervalKm;
+    // 2. Motor maintenance check (only if this order is actually a preventive/motor maintenance order)
+    if (isMotorMaint) {
+      const motorKey = `${baseVehicleKey}_motor`;
+      if (!processedVehicleServiceKeys.has(motorKey)) {
+        let motorMonths = 12;
+        let motorLabel = 'Mantenimiento de Motor (10.000 km / 12 meses)';
+        let motorKm = intervalKm;
 
-      if (intervalKm <= 5000) {
-        motorMonths = 6;
-        motorLabel = 'Mantenimiento de Motor (5.000 km / 6 meses)';
-        motorKm = 5000;
-      } else if (intervalKm === 7000) {
-        motorMonths = 8;
-        motorLabel = 'Mantenimiento de Motor (7.000 km / 8 meses)';
-        motorKm = 7000;
-      } else if (intervalKm === 100000) {
-        motorMonths = 36;
-        motorLabel = 'Correa de Distribución (100.000 km / 36 meses)';
-        motorKm = 100000;
-      }
+        if (intervalKm <= 5000) {
+          motorMonths = 6;
+          motorLabel = 'Mantenimiento de Motor (5.000 km / 6 meses)';
+          motorKm = 5000;
+        } else if (intervalKm === 7000) {
+          motorMonths = 8;
+          motorLabel = 'Mantenimiento de Motor (7.000 km / 8 meses)';
+          motorKm = 7000;
+        } else if (intervalKm === 100000) {
+          motorMonths = 36;
+          motorLabel = 'Correa de Distribución (100.000 km / 36 meses)';
+          motorKm = 100000;
+        }
 
-      processedVehicleServiceKeys.add(motorKey);
-      const item = buildReminder(
-        wo,
-        intervalKm === 100000 ? 'distribucion' : 'motor',
-        false,
-        motorKm,
-        motorMonths,
-        motorLabel
-      );
-      if (!options?.soloSinAvisoReciente || !item.notificadoRecientemente) {
-        reminders.push(item);
+        processedVehicleServiceKeys.add(motorKey);
+        const item = buildReminder(
+          wo,
+          intervalKm === 100000 ? 'distribucion' : 'motor',
+          false,
+          motorKm,
+          motorMonths,
+          motorLabel
+        );
+        if (!options?.soloSinAvisoReciente || !item.notificadoRecientemente) {
+          reminders.push(item);
+        }
       }
     }
   });
@@ -648,8 +732,8 @@ export function calculateReminders(
   // Also include vehicles registered in client records without orders
   clients.forEach((c) => {
     c.vehiculos.forEach((v) => {
-      const patente = v.patente?.trim().toUpperCase() || '';
-      const baseVehicleKey = patente && patente !== 'S/P'
+      const patente = normalizePatenteKey(v.patente);
+      const baseVehicleKey = patente
         ? patente
         : `${(c.nombre || '').toLowerCase().trim()}_${(v.marca || '').toLowerCase().trim()}_${(v.modelo || '').toLowerCase().trim()}`;
 
